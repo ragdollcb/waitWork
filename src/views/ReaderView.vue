@@ -1,0 +1,285 @@
+<script setup>
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch, watchEffect } from 'vue';
+import ReaderSidebar from '../components/ReaderSidebar.vue';
+import ReadingPane from '../components/ReadingPane.vue';
+import ReaderSettings from '../components/ReaderSettings.vue';
+import QueryToolbar from '../components/QueryToolbar.vue';
+import QueryCover from '../components/QueryCover.vue';
+import { observePrivacy } from '../lib/privacy.js';
+import { MAX_TXT_BYTES, MAX_ARCHIVE_BYTES, MAX_BOOKS, MAX_TOTAL_CHARS, DEFAULT_SETTINGS, decodeText, sectionsFor, sectionAt, parseArchive } from '../reader.mjs';
+import { sample } from '../sample.mjs';
+import { createStorage } from '../lib/host.js';
+import { createAutosave } from '../lib/autosave.mjs';
+
+const state = reactive({ books: [{ ...sample }], activeId: sample.id, settings: { ...DEFAULT_SETTINGS } });
+const pane = ref();
+const sidebar = ref();
+const settingsDialog = ref();
+const confirmDialog = ref();
+const confirmation = shallowRef();
+const privateMode = ref(true);
+const sidebarOpen = ref(false);
+const importing = ref(false);
+const initialized = ref(false);
+const loadError = ref('');
+const saveStatus = ref('loading');
+const saveError = ref('');
+const storage = createStorage();
+const autosave = createAutosave({
+  snapshot: () => ({ books: state.books.map(book => ({ ...book })), activeId: state.activeId, settings: { ...state.settings } }),
+  save: snapshot => storage.save(snapshot),
+  status: (value, error = '') => { saveStatus.value = value; saveError.value = error; },
+});
+watch(state, () => { if (initialized.value) autosave.changed(); }, { deep: true, flush: 'sync' });
+const saveLabel = computed(() => ({ loading: '正在恢复阅读…', saving: '正在自动保存…', saved: '已自动保存', error: '自动保存失败' })[saveStatus.value]);
+
+async function initialize() {
+  loadError.value = '';
+  try {
+    const saved = await storage.load();
+    if (disposed) return;
+    if (saved) Object.assign(state, saved);
+    initialized.value = true;
+    if (saved) saveStatus.value = 'saved';
+    else autosave.changed();
+    await nextTick();
+    pane.value.restore();
+  } catch (error) {
+    if (!disposed) loadError.value = error.message || '读取本地书架失败，请重新打开插件。';
+  }
+}
+function flushReading() {
+  if (!initialized.value) return;
+  pane.value?.capture();
+  void autosave.flush();
+}
+const encoding = ref('auto');
+const toast = ref('');
+const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+const hostTheme = ref(colorScheme.matches ? 'dark' : 'light');
+const sectionCache = new Map();
+let stopPrivacy;
+let toastTimer;
+let lastFocus;
+let disposed = false;
+
+const activeBook = computed(() => state.books.find((book) => book.id === state.activeId));
+const chapters = computed(() => {
+  const book = activeBook.value;
+  if (!book) return [];
+  if (!sectionCache.has(book.id)) sectionCache.set(book.id, sectionsFor(book.text));
+  return sectionCache.get(book.id);
+});
+const chapterIndex = computed(() => activeBook.value ? sectionAt(chapters.value, activeBook.value.position) : 0);
+
+function announce(message) {
+  if (disposed) return;
+  clearTimeout(toastTimer);
+  toast.value = message;
+  toastTimer = setTimeout(() => { toast.value = ''; }, 6500);
+}
+
+async function confirmAction(title, message, action) {
+  confirmation.value = { title, message, action };
+  await nextTick();
+  if (disposed) return;
+  if (privateMode.value) return;
+  confirmDialog.value.showModal();
+  confirmDialog.value.querySelector('#confirm-cancel').focus();
+}
+function closeConfirm() { confirmation.value = undefined; confirmDialog.value?.close(); }
+function confirmOK() { const action = confirmation.value?.action; closeConfirm(); action?.(); }
+function closeMobileSidebar() { if (window.innerWidth <= 700) sidebarOpen.value = false; }
+
+function updatePosition(position) { if (activeBook.value) activeBook.value.position = position; }
+async function selectBook(id) {
+  pane.value.capture();
+  state.activeId = id;
+  closeMobileSidebar();
+  await nextTick();
+  pane.value.restore();
+}
+function removeBook(book) {
+  confirmAction('移除这本书？', `“${book.title}”的正文和阅读位置将从书架移除，此变更会自动保存。原始 TXT 文件不受影响。`, () => {
+    pane.value.capture();
+    state.books = state.books.filter((item) => item.id !== book.id);
+    sectionCache.delete(book.id);
+    if (state.activeId === book.id) state.activeId = state.books[0]?.id ?? null;
+  });
+}
+async function navigate(index) {
+  if (!activeBook.value || !chapters.value[index]) return;
+  activeBook.value.position = chapters.value[index].start;
+  closeMobileSidebar();
+  await nextTick();
+  pane.value.restore();
+  pane.value.focus();
+}
+async function seek(ratio) {
+  if (!activeBook.value) return;
+  activeBook.value.position = Math.round(ratio * activeBook.value.text.length);
+  await nextTick();
+  pane.value.restore();
+}
+async function toggleSidebar() {
+  pane.value.capture();
+  sidebarOpen.value = !sidebarOpen.value;
+  await nextTick();
+  pane.value.restore();
+}
+async function changeSetting(key, value) {
+  pane.value.capture();
+  state.settings[key] = value;
+  await nextTick();
+  pane.value.restore();
+}
+async function resetSettings() {
+  pane.value.capture();
+  state.settings = { ...DEFAULT_SETTINGS };
+  await nextTick();
+  pane.value.restore();
+}
+
+watchEffect(() => {
+  const settings = state.settings;
+  const root = document.documentElement;
+  root.dataset.readerTheme = settings.theme === 'auto' ? hostTheme.value : settings.theme;
+  root.style.setProperty('--reader-size', `${settings.fontSize}px`);
+  root.style.setProperty('--reader-line', settings.lineHeight);
+  root.style.setProperty('--reader-width', `${settings.width}px`);
+  root.style.setProperty('--reader-font', settings.font === 'sans' ? '"Segoe UI","Microsoft YaHei",sans-serif' : 'Consolas,"Cascadia Code","Microsoft YaHei",monospace');
+});
+
+async function setPrivacy(hide, focus = true) {
+  if (hide === privateMode.value) return;
+  if (hide) {
+    flushReading();
+    lastFocus = document.activeElement;
+    toast.value = '';
+  }
+  privateMode.value = hide;
+  document.title = '新建查询';
+  await nextTick();
+  if (disposed || privateMode.value !== hide) return;
+  if (hide) {
+    // 先隐藏并禁用正文，再关原生 dialog，避免它把焦点还给旧的设置按钮。
+    settingsDialog.value.close();
+    closeConfirm();
+    // 自动收起不能把焦点从宿主的 SQL、表格或其他页面抢回来。
+    if (focus) document.querySelector('#restore-reading')?.focus({ preventScroll: true });
+  } else {
+    pane.value.restore();
+    if (lastFocus?.isConnected && lastFocus.getClientRects().length) lastFocus.focus({ preventScroll: true });
+    else pane.value.focus();
+    if (confirmation.value) confirmDialog.value.showModal();
+  }
+}
+function handleKey(event) {
+  if (!initialized.value) return;
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setPrivacy(!privateMode.value); return; }
+  if (privateMode.value || settingsDialog.value.isOpen() || confirmDialog.value.open || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.target.closest('input, select, textarea, button')) return;
+  if (event.key === 'ArrowLeft') { event.preventDefault(); navigate(chapterIndex.value - 1); }
+  if (event.key === 'ArrowRight') { event.preventDefault(); navigate(chapterIndex.value + 1); }
+  if (event.code === 'Space') { event.preventDefault(); pane.value.pageDown(event.shiftKey); }
+}
+function conceal() { flushReading(); void setPrivacy(true, false); }
+function resized() { if (!privateMode.value) pane.value.restore(); }
+function syncHostTheme() {
+  const appearance = window.dbxPlugin?.theme?.appearance;
+  if (!disposed && ['dark', 'light'].includes(appearance)) hostTheme.value = appearance;
+}
+function systemThemeChanged(event) { if (!window.dbxPlugin) hostTheme.value = event.matches ? 'dark' : 'light'; }
+
+async function importFiles(files) {
+  if (!initialized.value || !files.length || importing.value) return;
+  importing.value = true;
+  try {
+    if (files.some((file) => /\.json$/i.test(file.name))) {
+      if (files.length !== 1 || !/\.json$/i.test(files[0].name)) throw new Error('请单独导入一个存档，TXT 可以多选。');
+      if (files[0].size > MAX_ARCHIVE_BYTES) throw new Error('存档超过 64 MB，无法导入。');
+      const restored = parseArchive(await files[0].text());
+      if (disposed) return;
+      const apply = async () => {
+        // 相同书籍 ID 的存档也可能包含不同正文，先清除派生章节缓存。
+        sectionCache.clear();
+        Object.assign(state, restored);
+        closeMobileSidebar();
+        await nextTick();
+        pane.value.restore();
+        announce('存档已恢复，可以接着读了。');
+      };
+      if (state.books.some((book) => book.id !== sample.id)) await confirmAction('用存档替换当前书架？', '当前书架、阅读位置和设置会被此存档替换。替换后会自动保存，请确认存档内容是你需要的。', apply);
+      else await apply();
+      return;
+    }
+    if (files.some((file) => !/\.txt$/i.test(file.name))) throw new Error('目前支持 TXT 小说和 waitWork JSON 存档。');
+    if (files.length > MAX_BOOKS) throw new Error(`书架最多放 ${MAX_BOOKS} 本书，请减少本次导入数量。`);
+    let total = 0;
+    const imported = [];
+    const encodings = new Set();
+    const selectedEncoding = encoding.value;
+    for (const file of files) {
+      if (file.size > MAX_TXT_BYTES) throw new Error(`“${file.name}”超过 8 MB，请拆分后导入。`);
+      const decoded = decodeText(await file.arrayBuffer(), selectedEncoding);
+      if (disposed) return;
+      total += decoded.text.length;
+      if (total > MAX_TOTAL_CHARS) throw new Error('书架正文总量过大，请先移除部分书籍。');
+      imported.push({ id: crypto.randomUUID(), title: file.name.replace(/\.txt$/i, '').slice(0, 200).trim() || '未命名小说', text: decoded.text, position: 0 });
+      encodings.add(decoded.encoding);
+    }
+    pane.value.capture();
+    const hasOnlySample = state.books.length === 1 && state.books[0].id === sample.id;
+    const existing = hasOnlySample ? [] : state.books;
+    if (existing.length + imported.length > MAX_BOOKS) throw new Error(`书架最多放 ${MAX_BOOKS} 本书，请先移除部分书籍。`);
+    if (total + existing.reduce((sum, book) => sum + book.text.length, 0) > MAX_TOTAL_CHARS) throw new Error('书架正文总量过大，请先移除部分书籍。');
+    // 批量导入失败时保留原有书架，全部读取成功后再提交。
+    if (hasOnlySample) sectionCache.delete(sample.id);
+    state.books = [...existing, ...imported];
+    state.activeId = imported[0].id;
+    closeMobileSidebar();
+    announce(`已导入 ${imported.length} 本 · ${[...encodings].join(' / ')}\n正在自动保存小说和阅读位置。`);
+  } catch (error) { announce(error.message || '导入失败，请确认文件可读后重试。'); }
+  finally { importing.value = false; }
+}
+
+function loadSample() { state.books = [{ ...sample }]; state.activeId = sample.id; closeMobileSidebar(); }
+
+onMounted(() => {
+  document.title = '新建查询';
+  void initialize();
+  stopPrivacy = observePrivacy(conceal);
+  document.addEventListener('keydown', handleKey, true);
+  window.addEventListener('resize', resized);
+  document.addEventListener('dbx-plugin-env', syncHostTheme);
+  colorScheme.addEventListener('change', systemThemeChanged);
+  window.dbxPlugin?.ready.then(syncHostTheme).catch(() => announce('宿主初始化失败，请重新打开插件。'));
+});
+onBeforeUnmount(() => {
+  flushReading();
+  void autosave.stop();
+  disposed = true;
+  stopPrivacy?.();
+  clearTimeout(toastTimer);
+  document.removeEventListener('keydown', handleKey, true);
+  window.removeEventListener('resize', resized);
+  document.removeEventListener('dbx-plugin-env', syncHostTheme);
+  colorScheme.removeEventListener('change', systemThemeChanged);
+});
+</script>
+
+<template>
+  <div id="reader-app" :inert="!initialized || privateMode" class="app" :class="{ 'sidebar-collapsed': !sidebarOpen }" :hidden="privateMode">
+    <QueryToolbar :saved="saveLabel" :error="saveError" :sidebar-open="sidebarOpen" @sidebar="toggleSidebar" @settings="settingsDialog.open()" @toggle="setPrivacy(true)" />
+    <div class="workspace">
+      <ReaderSidebar ref="sidebar" v-model:encoding="encoding" :books="state.books" :active-id="state.activeId" :chapters="chapters" :chapter-index="chapterIndex" :busy="importing" @select-book="selectBook" @remove-book="removeBook" @navigate="navigate" @files="importFiles" />
+      <ReadingPane ref="pane" :book="activeBook" :chapters="chapters" :chapter-index="chapterIndex" :hidden="privateMode" :busy="importing" @position="updatePosition" @navigate="navigate" @seek="seek" @import="sidebar.chooseFiles()" @sample="loadSample" />
+    </div>
+  </div>
+  <section v-if="!initialized" class="storage-overlay" role="status"><h2>{{ loadError ? '无法读取本地文件' : '正在加载查询…' }}</h2><p>{{ loadError || '正在恢复本地文件和编辑位置。' }}</p><button v-if="loadError" class="button" @click="initialize">重新读取</button></section>
+  <div v-if="initialized && saveError && !privateMode" id="save-error" class="save-error" role="alert">{{ saveError }}<span>最新修改尚未保存，请保持插件打开。</span></div>
+  <QueryCover v-show="privateMode" @restore="setPrivacy(false)" />
+  <ReaderSettings ref="settingsDialog" :settings="state.settings" @change="changeSetting" @reset="resetSettings" />
+  <dialog id="confirm-dialog" ref="confirmDialog" class="confirm-dialog" aria-labelledby="confirm-title" @cancel="confirmation = undefined"><h2 id="confirm-title">{{ confirmation?.title }}</h2><p id="confirm-message">{{ confirmation?.message }}</p><div class="dialog-actions"><button id="confirm-cancel" class="button quiet" @click="closeConfirm">取消</button><button id="confirm-ok" class="button import-button" @click="confirmOK">确定</button></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" :hidden="!toast || privateMode">{{ toast }}</div>
+</template>
