@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 *.xidu.json
 *.waitwork.json
+# 商店候选元数据与小说存档的文件名后缀相同，需要保留候选文件。
+!/docs/store-submission/candidates/*.json

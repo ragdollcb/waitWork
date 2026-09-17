@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "monstercat.waitwork",
+  "publisher": "monstercat",
+  "version": "0.5.0",
+  "name": "waitWork",
+  "description": "等一会工作，休息一下。支持本地 TXT 小说阅读、章节目录、阅读设置与自动保存，切换页面自动收起正文。",
+  "icon": "https://raw.githubusercontent.com/ragdollcb/waitWork/v0.5.0/assets/plugin.svg",
+  "tags": [
+    "productivity",
+    "reader"
+  ],
+  "source": "https://github.com/ragdollcb/waitWork/tree/dfc7b1117b898a47380b38034ef83302cc782b30",
+  "homepage": "https://github.com/ragdollcb/waitWork",
+  "license": "Apache-2.0",
+  "releaseNotes": "首次申请上架：本地 TXT 阅读、编码识别与空字符清理、章节目录、自动保存、查询样式界面，以及切换页面自动隐藏正文。提供 Windows、macOS、Linux 的 x64 和 ARM64 安装包。",
+  "localizations": {
+    "zh-CN": {
+      "name": "waitWork",
+      "description": "等一会工作，休息一下。本地 TXT 小说阅读、章节目录与自动保存。"
+    }
+  },
+  "targets": [
+    {
+      "target": "darwin-arm64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-darwin-arm64.dbxp",
+      "sha256": "7e2bae4d0b5a0d407e8a997b5ff7c637016bb5687cc44ad7e753ab0d173ab141",
+      "size": 2211603
+    },
+    {
+      "target": "darwin-x64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-darwin-x64.dbxp",
+      "sha256": "9e20d5bc170c428e8bcc079202ad316fe53293e381e3916558a063a173c67cd8",
+      "size": 2339360
+    },
+    {
+      "target": "linux-arm64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-linux-arm64.dbxp",
+      "sha256": "dfe20bb93833ea228ad800b29979c7d1b2022d90a54011c95bc1442f2db5d8ce",
+      "size": 2112509
+    },
+    {
+      "target": "linux-x64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-linux-x64.dbxp",
+      "sha256": "b893ffcca26b3418e9f7c0a185e385b308d0340439bd6b8832d0c4c70da5f734",
+      "size": 2282276
+    },
+    {
+      "target": "windows-arm64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-windows-arm64.dbxp",
+      "sha256": "8b213ec63974eb5e3f4c4d6f7fb5ca0a57eab5d7574e81cf6b424300795d2d5e",
+      "size": 2141070
+    },
+    {
+      "target": "windows-x64",
+      "url": "https://github.com/ragdollcb/waitWork/releases/download/v0.5.0/monstercat.waitwork-0.5.0-windows-x64.dbxp",
+      "sha256": "9b0a71624d2e77199c5388defcd853f8b5804dcb2278efa548b6c52ff3bbe804",
+      "size": 2329836
+    }
+  ]
+}
