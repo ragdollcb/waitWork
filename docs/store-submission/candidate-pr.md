@@ -5,7 +5,11 @@
 - Publisher ID: `monstercat`
 - Targets: `windows-x64`, `windows-arm64`, `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`
 
-Please merge the separate `monstercat` publisher registration before signing this candidate.
+This first-submission PR includes both `publishers/monstercat.json` and `candidates/monstercat.waitwork.json`, following the store's single-PR submission process.
+
+### Signing workflow note for maintainers
+
+The current `.github/workflows/sign-plugin-pr.yml` removes `publishers/` and restores it from the base branch before candidate validation. Since `monstercat` is a new publisher, please preserve or register this publisher before that step, or adjust the workflow to retain reviewed new publisher records. Otherwise the candidate can fail with `publisher 'monstercat' is not registered`. This is separate from the expected pre-signing CI gate; it does not change the candidate package bytes.
 
 ## Source repository and tag
 

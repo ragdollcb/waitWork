@@ -8,7 +8,7 @@
 
 1. 打开 DBX → 插件中心 → 设置 → 第三方与开发者选项。
 2. 开启“允许安装未签名开发包”。
-3. 从 [GitHub Releases](https://github.com/ragdollcb/waitWork/releases) 下载对应平台的包，例如 `monstercat.waitwork-0.5.0-windows-x64.dbxp`。本地构建产物位于 `dist/`。
+3. 从 [GitHub Releases](https://github.com/ragdollcb/waitWork/releases) 下载对应平台的包。文件名格式为 `monstercat.waitwork-<版本>-<平台>.dbxp`，例如 Windows x64 选择以 `windows-x64.dbxp` 结尾的包。本地构建产物位于 `dist/`。
 4. 在已安装的 waitWork 插件中打开“waitWork”工作台。工作台入口的说明包含导入小说、阅读设置、隐藏／恢复和自动保存用法。更新后关闭旧标签再重新打开。
 
 插件 ID 为 `monstercat.waitwork`，发布者为 `monstercat`，源码仓库为 [ragdollcb/waitWork](https://github.com/ragdollcb/waitWork)。GitHub 构建产物是未签名候选，官方商店通过 `t8y2/dbx-store` 审核签名。
@@ -66,7 +66,7 @@ npm run package
 ## GitHub Actions 打包
 
 - **手动构建**：Actions → Build waitWork packages → Run workflow，完成后下载 `waitwork-all-platforms`。
-- **版本发布**：推送与源码版本一致的标签（当前 `v0.5.0`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。
+- **版本发布**：先同步并提交前后端版本，再推送与源码版本一致的标签（当前 `v0.5.2`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。创建标签不会自动修改项目版本号。
 - 无需配置自定义 Secret，工作流自动生成六份安装包、各包元数据和 `release-candidates.json`。
 
 完整平台列表、发布步骤和旧版迁移说明见 [发布打包说明](docs/releasing.md)。

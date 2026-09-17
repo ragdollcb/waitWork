@@ -1,10 +1,5 @@
-Register `monstercat` as a publisher for waitWork (`monstercat.waitwork`).
+# 当前 PR 请使用完整上架正文
 
-- GitHub account: https://github.com/ragdollcb
-- Plugin source repository: https://github.com/ragdollcb/waitWork
-- Current release: https://github.com/ragdollcb/waitWork/releases/tag/v0.5.0
-- Publisher status: `unverified`
+此前单独登记发布者的方案已调整：根据官方 `CONTRIBUTING.md`，首次上架应在同一个 PR 中提交发布者记录和插件候选。
 
-This PR only adds `publishers/monstercat.json`; it does not add signing keys or change the catalog.
-
-Please merge the publisher registration before signing the separate plugin candidate PR. The current signing workflow restores `publishers/` from the base branch before candidate validation.
+请在现有 PR #35 中补齐 `candidates/monstercat.waitwork.json`，并使用 [candidate-pr.md](candidate-pr.md) 替换 PR 正文。签名工作流覆盖新发布者记录的问题已在该正文中单独说明，交由维护者处理。
