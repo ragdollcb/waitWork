@@ -1,0 +1,11 @@
+waitWork
+Copyright 2026 monstercat
+
+Source: https://github.com/ragdollcb/waitWork
+
+The original waitWork code and documentation are licensed under the Apache
+License, Version 2.0. This includes the original waitWork code published at
+tag v0.5.0 (commit dfc7b1117b898a47380b38034ef83302cc782b30).
+
+Third-party dependencies and vendored development tools retain their own
+licenses and copyright notices.
