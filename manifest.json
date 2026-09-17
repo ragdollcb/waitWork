@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/t8y2/dbx/main/plugins/manifest.schema.json",
+  "manifest_version": 1,
+  "id": "monstercat.waitwork",
+  "name": "waitWork",
+  "version": "0.5.0",
+  "publisher": "monstercat",
+  "source": "https://github.com/ragdollcb/waitWork",
+  "homepage": "https://github.com/ragdollcb/waitWork",
+  "description": "等一会工作，休息一下。支持本地 TXT 小说阅读、章节目录与自动保存。",
+  "icon": "assets/plugin.svg",
+  "engines": {
+    "dbx": ">=0.6.0",
+    "host_api": "1"
+  },
+  "permissions": [],
+  "entrypoints": {
+    "backend": {
+      "executable": "bin/dbx-waitwork"
+    },
+    "ui": {
+      "root": "ui",
+      "entry": "ui/index.html"
+    }
+  },
+  "contributions": [
+    {
+      "type": "workbench",
+      "id": "monstercat.waitwork.workbench",
+      "label": "waitWork",
+      "description": "使用方法：点击右侧'打开'开始使用；点击左上角侧栏图标 → 打开文件，导入 TXT 小说；点击右上角齿轮调整字体、字号和主题。在插件内按 Esc 或点击 SQL 可隐藏／恢复正文；切换页面自动隐藏，返回后需手动恢复。小说、进度和设置自动保存。",
+      "icon": "assets/query.svg"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.dbx-dev/
+.upstream/
+.codegraph-cache/
+test-results/
+playwright-report/
+*.xidu.json
+*.waitwork.json
