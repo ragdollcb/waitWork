@@ -46,7 +46,7 @@
 
 GitHub Release 中的包是未签名候选，本地安装需启用 DBX 的“允许安装未签名开发包”。官方商店签名仍由 DBX Store 审核工作流完成。
 
-首次上架还需确定许可证、准备商店介绍和发布者登记。`release-candidates.json` 用于发布资产聚合，不等于已经提交商店审核；登记自动同步时还需在源码仓库补充 `.dbx-store.json`。
+许可证已确定为 Apache-2.0，商店介绍已放入 `.dbx-store.json`；发布者登记和首次候选材料见 [上架说明](store-submission/README.md)。`release-candidates.json` 用于发布资产聚合，不等于已经提交商店审核。自动同步会读取 Release 标签下的 `.dbx-store.json`，新加的文件需要进入后续版本标签。
 
 参考：[GitHub runner 平台说明](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[DBX Store 提交说明](https://github.com/t8y2/dbx-store/blob/main/CONTRIBUTING.md)。
 

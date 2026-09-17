@@ -1,0 +1,16 @@
+{
+  "name": "waitWork",
+  "description": "等一会工作，休息一下。支持本地 TXT 小说阅读、章节目录、阅读设置与自动保存，切换页面自动收起正文。",
+  "icon": "assets/plugin.svg",
+  "tags": ["productivity", "reader"],
+  "source": "https://github.com/ragdollcb/waitWork",
+  "homepage": "https://github.com/ragdollcb/waitWork",
+  "license": "Apache-2.0",
+  "releaseNotes": "首次申请上架：本地 TXT 阅读、编码识别与空字符清理、章节目录、自动保存、查询样式界面，以及切换页面自动隐藏正文。提供 Windows、macOS、Linux 的 x64 和 ARM64 安装包。",
+  "localizations": {
+    "zh-CN": {
+      "name": "waitWork",
+      "description": "等一会工作，休息一下。本地 TXT 小说阅读、章节目录与自动保存。"
+    }
+  }
+}
