@@ -1,11 +1,13 @@
 ## Plugin submission
 
 - Plugin ID: `monstercat.waitwork`
-- Version: `0.5.0`
+- Version: `0.5.2`
 - Publisher ID: `monstercat`
 - Targets: `windows-x64`, `windows-arm64`, `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`
 
 This first-submission PR includes both `publishers/monstercat.json` and `candidates/monstercat.waitwork.json`, following the store's single-PR submission process.
+
+Supersedes the closed, unmerged publisher-only PR #35.
 
 ### Signing workflow note for maintainers
 
@@ -14,12 +16,12 @@ The current `.github/workflows/sign-plugin-pr.yml` removes `publishers/` and res
 ## Source repository and tag
 
 - Repository: https://github.com/ragdollcb/waitWork
-- Build tag: https://github.com/ragdollcb/waitWork/tree/v0.5.0
-- Exact build commit: https://github.com/ragdollcb/waitWork/tree/dfc7b1117b898a47380b38034ef83302cc782b30
-- Build workflow: https://github.com/ragdollcb/waitWork/actions/runs/35177784556
-- Unsigned release: https://github.com/ragdollcb/waitWork/releases/tag/v0.5.0
+- Build tag: https://github.com/ragdollcb/waitWork/tree/v0.5.2
+- Exact build commit: https://github.com/ragdollcb/waitWork/tree/87cec337fbb3990ce0246480ad7c77a9570d014c
+- Successful build workflow: https://github.com/ragdollcb/waitWork/actions/runs/35199359970
+- Unsigned release: https://github.com/ragdollcb/waitWork/releases/tag/v0.5.2
 
-The release packages have not been rebuilt or replaced. The license declaration was added separately after this release; the repository's `NOTICE` explicitly covers the original waitWork code at the above commit.
+All six packages were downloaded from this published release and checked against their artifact metadata and `release-candidates.json`: SHA-256, size, manifest identity/version, unsigned state, internal file checksums, and macOS/Linux executable permissions passed. Source and icon links in the candidate are pinned to the exact build commit.
 
 ## Capabilities and user workflow
 
@@ -53,8 +55,8 @@ The backend reads/writes `library.json` and content-addressed text chunks under 
 
 Apache-2.0, copyright 2026 monstercat.
 
-- License: https://github.com/ragdollcb/waitWork/blob/master/LICENSE
-- Copyright and v0.5.0 scope: https://github.com/ragdollcb/waitWork/blob/master/NOTICE
+- License: https://github.com/ragdollcb/waitWork/blob/87cec337fbb3990ce0246480ad7c77a9570d014c/LICENSE
+- Copyright notice: https://github.com/ragdollcb/waitWork/blob/87cec337fbb3990ce0246480ad7c77a9570d014c/NOTICE
 - Third-party dependencies and vendored development tools retain their original licenses.
 
 ## Homepage or support URL
