@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
+import { epub } from '../fixtures/ebooks.mjs';
 
 const novel = '第一章 雨夜\n' + '雨声沿着屋檐缓缓流下，她翻开一本旧书。\n'.repeat(180) + '\n第二章 清晨\n' + '窗外天色渐亮。\n'.repeat(100);
 async function reveal(reader) {
@@ -127,6 +128,16 @@ test('实际官方 CLI 宿主可自动保存并在重开工作台后恢复', asy
   await reveal(reader);
   await expect(reader.locator('#current-book')).toHaveText('长篇测试');
   await expect(reader.locator('.storage-overlay')).toHaveCount(0);
+  await reader.locator('#file-input').setInputFiles({ name: '电子书.epub', mimeType: 'application/epub+zip', buffer: epub() });
+  await expect(reader.locator('#current-book')).toHaveText('雨中的书');
+  await reader.locator('#next').click();
+  await expect(reader.locator('#chapter-title')).toContainText('雨巷');
+  await expect(reader.locator('#save-status')).toHaveText('已自动保存');
+  await page.reload();
+  await page.getByRole('button', { name: 'Wait Work', exact: true }).click();
+  await reveal(reader);
+  await expect(reader.locator('#chapter-title')).toContainText('雨巷');
+  await expect(reader.locator('#paragraphs')).toContainText('甲段中文');
   expect(errors).toEqual([]);
 });
 

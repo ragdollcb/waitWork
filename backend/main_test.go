@@ -62,6 +62,59 @@ func TestRestoreAndEmptyShelf(t *testing.T) {
 	}
 }
 
+func TestEbookMetadataAndInvalidTOCPreserveShelf(t *testing.T) {
+	s := &store{dir: t.TempDir()}
+	value := seed(t, s)
+	value.Data.Books[0].Format = "epub"
+	value.Data.Books[0].TOC = []tocEntry{{Title: "雨巷", Start: 0}, {Title: "晴空", Start: 4}}
+	if _, err := call(t, s, "reader/save", value); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := (&store{dir: s.dir}).read()
+	if err != nil || restored.Data.Books[0].Format != "epub" || len(restored.Data.Books[0].TOC) != 2 || restored.Data.Books[0].TOC[1].Start != 4 {
+		t.Fatal("电子书目录未恢复", err)
+	}
+	before, _ := os.ReadFile(filepath.Join(s.dir, "library.json"))
+	value.Revision = 1
+	for _, toc := range [][]tocEntry{
+		{{Title: "章", Start: -1}}, {{Title: "章", Start: 100}}, {{Title: "", Start: 0}},
+		{{Title: "甲", Start: 1}, {Title: "乙", Start: 1}}, {{Title: "甲", Start: 2}, {Title: "乙", Start: 1}},
+	} {
+		value.Data.Books[0].TOC = toc
+		if _, err := call(t, s, "reader/save", value); err == nil {
+			t.Fatal("允许写入无效目录", toc)
+		}
+	}
+	after, _ := os.ReadFile(filepath.Join(s.dir, "library.json"))
+	if string(before) != string(after) {
+		t.Fatal("无效目录覆盖了已有书架")
+	}
+}
+
+func TestEbookLibraryRequestLimit(t *testing.T) {
+	s := &store{dir: t.TempDir()}
+	value := seed(t, s)
+	// 目录使索引超过旧版 256 KiB，仍应能保存；超过 1 MiB 则拒绝。
+	result, err := call(t, s, "reader/chunk-put", map[string]string{"text": strings.Repeat("文", 3000)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value.Data.Books[0].Chunks = []string{result.(map[string]string)["hash"]}
+	for i := 0; i < 600; i++ {
+		value.Data.Books[0].TOC = append(value.Data.Books[0].TOC, tocEntry{Title: strings.Repeat("章", 200), Start: i})
+	}
+	if _, err := call(t, s, "reader/save", value); err != nil {
+		t.Fatal(err)
+	}
+	value.Revision = 1
+	for i := 600; i < 2000; i++ {
+		value.Data.Books[0].TOC = append(value.Data.Books[0].TOC, tocEntry{Title: strings.Repeat("章", 200), Start: i})
+	}
+	if _, err := call(t, s, "reader/save", value); err == nil {
+		t.Fatal("允许写入超过 1 MiB 的索引")
+	}
+}
+
 func TestRejectConflictAndMissingContentWithoutClobber(t *testing.T) {
 	s := &store{dir: t.TempDir()}
 	value := seed(t, s)

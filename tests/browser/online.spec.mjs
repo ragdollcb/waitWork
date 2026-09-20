@@ -26,9 +26,9 @@ async function fixtures(page) {
     if (method === 'source/chapter') {
       const index = chapters.findIndex(chapter => chapter.path === params.chapterPath);
       if (control.gate && index === 1) await control.gate;
-      if (control.offline && !cache.has(index)) return route.fulfill({ json: { error: { message: '无法连接书源，请检查网络后重试' } } });
-      result = cache.get(index) || { path: chapters[index].path, title: chapters[index].title, text: body(index), cached: true };
-      cache.set(index, result);
+      if ((control.offline || !params.allowNetwork) && !cache.has(`${params.origin}:${index}`)) return route.fulfill({ json: { error: { message: '无法连接书源，请检查网络后重试' } } });
+      result = cache.get(`${params.origin}:${index}`) || { path: chapters[index].path, title: chapters[index].title, text: body(index), cached: true };
+      cache.set(`${params.origin}:${index}`, result);
     }
     await route.fulfill({ json: { result } });
   });
@@ -40,9 +40,16 @@ async function reveal(page) {
   if (await reader.locator('#privacy-screen').isVisible()) await reader.locator('#restore-reading').click();
   return reader;
 }
+async function configure(reader, origin = 'https://www.biquge001.com') {
+  await reader.locator('#open-settings').click();
+  await reader.locator('#source-url').fill(origin);
+  await reader.locator('#save-source').click();
+  await reader.locator('#close-settings').click();
+}
 async function start(page) {
   await page.goto('http://127.0.0.1:5191/sandbox');
   const reader = await reveal(page);
+  await configure(reader);
   await reader.locator('#toggle-sidebar').click();
   await reader.locator('#tab-online').click();
   await reader.locator('#online-query').fill('测试小说');
@@ -125,6 +132,7 @@ test('搜索分页、空结果、重试和移动端目录展示', async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('http://127.0.0.1:5191/sandbox');
   const reader = await reveal(page);
+  await configure(reader);
   await reader.locator('#toggle-sidebar').click();
   await reader.locator('#tab-online').click();
   await reader.locator('#online-query').fill('测试');
@@ -157,4 +165,60 @@ test('搜索分页、空结果、重试和移动端目录展示', async ({ page 
   await reader.locator('.online-search .chapter-button').nth(1).click();
   await expect(reader.locator('#chapter-title')).toContainText(chapters[1].title);
   await expect(reader.locator('#sidebar')).toBeHidden();
+});
+
+test('网址默认留空，校验、保存恢复与清空后禁用搜索', async ({ page }) => {
+  const { calls } = await fixtures(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('http://127.0.0.1:5191/sandbox');
+  const reader = await reveal(page);
+  await reader.locator('#toggle-sidebar').click();
+  await reader.locator('#tab-online').click();
+  await expect(reader.locator('#online-query')).toBeDisabled();
+  expect(calls).toHaveLength(0);
+  await reader.locator('#configure-source').click();
+  await expect(reader.locator('#source-url')).toHaveValue('');
+  await expect(reader.locator('#source-example')).toContainText('https://www.biquge001.com/');
+  await reader.locator('#source-url').fill('http://example.com');
+  await reader.locator('#save-source').click();
+  await expect(reader.locator('#source-url-error')).toBeVisible();
+  await reader.locator('#source-url').fill('https://books.example.com/');
+  await reader.locator('#save-source').click();
+  await expect(reader.locator('#source-url')).toHaveValue('https://books.example.com');
+  await mkdir('test-results/screenshots', { recursive: true });
+  await page.screenshot({ path: 'test-results/screenshots/source-settings.png' });
+  await reader.locator('#close-settings').click();
+  await expect(reader.locator('#save-status')).toHaveText('已自动保存');
+  await page.reload();
+  await reveal(page);
+  await reader.locator('#open-settings').click();
+  await expect(reader.locator('#source-url')).toHaveValue('https://books.example.com');
+  await reader.locator('#close-settings').click();
+  await reader.locator('#toggle-sidebar').click();
+  await reader.locator('#tab-online').click();
+  await reader.locator('#online-query').fill('测试');
+  await reader.locator('#online-submit').click();
+  await expect(reader.locator('.online-result')).toHaveCount(1);
+  expect(calls.at(-1).params.origin).toBe('https://books.example.com');
+  await configure(reader, '');
+  await expect(reader.locator('#online-query')).toBeDisabled();
+  await expect(reader.locator('.online-result')).toHaveCount(0);
+});
+
+test('清空来源后只读缓存，切换来源后同路径小说分别入架', async ({ page }) => {
+  const { calls } = await fixtures(page);
+  const reader = await start(page);
+  await configure(reader, '');
+  await expect(reader.locator('#chapter-title')).toContainText(chapters[0].title);
+  await expect.poll(() => calls.at(-1).params.allowNetwork).toBe(false);
+  await configure(reader, 'https://other.example.com');
+  await reader.locator('#tab-online').click();
+  await reader.locator('#online-query').fill('测试');
+  await reader.locator('#online-submit').click();
+  await reader.locator('.online-result').click();
+  await reader.locator('#online-start').click();
+  await expect(reader.locator('#book-count')).toHaveText('2 项');
+  await expect(reader.locator('#chapter-title')).toContainText(chapters[0].title);
+  expect(calls.at(-1).params.origin).toBe('https://other.example.com');
+  await expect(reader.locator('#save-status')).toHaveText('已自动保存');
 });

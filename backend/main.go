@@ -20,19 +20,28 @@ import (
 )
 
 const chunkLimit = 128 * 1024
+const libraryLimit = 1024 * 1024
 
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var idPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
 
+type tocEntry struct {
+	Title string `json:"title"`
+	Start int    `json:"start"`
+}
+
 type book struct {
-	Kind        string   `json:"kind,omitempty"`
-	Source      string   `json:"source,omitempty"`
-	BookPath    string   `json:"bookPath,omitempty"`
-	ChapterPath string   `json:"chapterPath,omitempty"`
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Position    int      `json:"position"`
-	Chunks      []string `json:"chunks"`
+	Format       string     `json:"format,omitempty"`
+	TOC          []tocEntry `json:"toc,omitempty"`
+	Kind         string     `json:"kind,omitempty"`
+	Source       string     `json:"source,omitempty"`
+	SourceOrigin string     `json:"sourceOrigin,omitempty"`
+	BookPath     string     `json:"bookPath,omitempty"`
+	ChapterPath  string     `json:"chapterPath,omitempty"`
+	ID           string     `json:"id"`
+	Title        string     `json:"title"`
+	Position     int        `json:"position"`
+	Chunks       []string   `json:"chunks"`
 }
 type library struct {
 	Books    []book          `json:"books"`
@@ -116,7 +125,19 @@ func (s *store) validate(value *library) error {
 	if json.Unmarshal(value.Settings, &settings) != nil || settings == nil {
 		return errors.New("阅读设置无效")
 	}
+	if raw, present := settings["sourceURL"]; present {
+		origin, ok := raw.(string)
+		if !ok {
+			return errors.New("书源网址无效")
+		}
+		if origin != "" {
+			if normalized, err := normalizeSourceOrigin(origin); err != nil || normalized != origin {
+				return errors.New("书源网址无效，请在设置中重新保存")
+			}
+		}
+	}
 	ids := map[string]bool{}
+	onlineBooks := map[string]bool{}
 	total := 0
 	for _, b := range value.Books {
 		if !idPattern.MatchString(b.ID) || ids[b.ID] || b.Title == "" || len(utf16.Encode([]rune(b.Title))) > 200 {
@@ -124,9 +145,15 @@ func (s *store) validate(value *library) error {
 		}
 		ids[b.ID] = true
 		if b.Kind == "online" {
-			if b.Source != "biquge001" || !bookPathPattern.MatchString(b.BookPath) || b.ID != onlineID(b.BookPath) || !validChapter(b.BookPath, b.ChapterPath) || b.Position < 0 || b.Position > onlinePageLimit || len(b.Chunks) != 0 {
+			origin, err := normalizeSourceOrigin(bookOrigin(b))
+			if err != nil || origin != bookOrigin(b) || b.Source != "biquge001" || !bookPathPattern.MatchString(b.BookPath) || !validChapter(b.BookPath, b.ChapterPath) || b.Position < 0 || b.Position > onlinePageLimit || len(b.Chunks) != 0 {
 				return errors.New("在线书籍或阅读位置无效")
 			}
+			key := sourceCacheKey(origin, b.BookPath)
+			if onlineBooks[key] {
+				return errors.New("同一来源的小说不能重复加入书架")
+			}
+			onlineBooks[key] = true
 			continue
 		}
 		if (b.Kind != "" && b.Kind != "local") || len(b.Chunks) == 0 || len(b.Chunks) > 128 {
@@ -144,6 +171,19 @@ func (s *store) validate(value *library) error {
 		}
 		if length > 8*1024*1024 || b.Position < 0 || b.Position > length {
 			return errors.New("正文或阅读位置超出限制")
+		}
+		if b.Format != "" && b.Format != "txt" && b.Format != "epub" && b.Format != "mobi" {
+			return errors.New("本地书籍格式无效")
+		}
+		if len(b.TOC) > 10000 {
+			return errors.New("章节目录超出限制")
+		}
+		previous := -1
+		for _, item := range b.TOC {
+			if strings.TrimSpace(item.Title) == "" || len(utf16.Encode([]rune(item.Title))) > 200 || item.Start <= previous || item.Start >= length {
+				return errors.New("章节目录位置或标题无效")
+			}
+			previous = item.Start
 		}
 		total += length
 	}
@@ -204,7 +244,7 @@ func (s *store) Handle(_ dbx.RequestContext, method string, raw json.RawMessage,
 		return map[string]string{"text": string(data)}, nil
 	case "reader/save":
 		var p snapshot
-		if len(raw) > 256*1024 || json.Unmarshal(raw, &p) != nil {
+		if len(raw) > libraryLimit || json.Unmarshal(raw, &p) != nil {
 			return fail(errors.New("书架请求无效"))
 		}
 		current, err := s.read()
@@ -236,9 +276,10 @@ func (s *store) Handle(_ dbx.RequestContext, method string, raw json.RawMessage,
 					if s.onlineEpoch == nil {
 						s.onlineEpoch = map[string]uint64{}
 					}
-					s.onlineEpoch[b.BookPath]++
+					origin := bookOrigin(b)
+					s.onlineEpoch[sourceCacheKey(origin, b.BookPath)]++
 					// 路径由固定根目录和受校验的书籍标识组成。
-					_ = os.RemoveAll(s.onlineDir(b.BookPath))
+					_ = os.RemoveAll(s.onlineDir(origin, b.BookPath))
 				}
 			}
 			used := map[string]bool{}

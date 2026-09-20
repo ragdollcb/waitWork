@@ -1,4 +1,5 @@
-import { parseArchive } from '../reader.mjs';
+import { parseArchive, localMetadata, checkLibrarySize } from '../reader.mjs';
+import { LEGACY_SOURCE_ORIGIN, normalizeSourceURL } from './source-config.mjs';
 
 export async function invoke(method, params = {}) {
   const bridge = window.dbxPlugin;
@@ -32,6 +33,7 @@ export function createStorage() {
       return { books: books.map(book => book.kind === 'online' ? book : locals.get(book.id)), activeId: saved.data.activeId, settings: local.settings };
     },
     async save(state) {
+      checkLibrarySize(state);
       const books = [];
       const nextTexts = new Map();
       for (const book of state.books) {
@@ -49,7 +51,7 @@ export function createStorage() {
           cached = { text: book.text, chunks };
         }
         nextTexts.set(book.id, cached);
-        books.push({ id: book.id, title: book.title, position: book.position, chunks: cached.chunks });
+        books.push({ id: book.id, title: book.title, position: book.position, chunks: cached.chunks, ...localMetadata(book) });
       }
       const result = await invoke('reader/save', { revision, data: { books, activeId: state.activeId, settings: state.settings } });
       revision = result.revision;
@@ -61,10 +63,11 @@ export function createStorage() {
 export function onlineID(path) { return `biquge001-${path.replace(/^\/+|\/+$/g, '').replaceAll('/', '-')}`; }
 
 export function validateOnlineBook(book) {
+  const sourceOrigin = book.sourceOrigin === undefined ? LEGACY_SOURCE_ORIGIN : normalizeSourceURL(book.sourceOrigin);
   if (book.source !== 'biquge001' || !/^\/Book\/\d{1,8}\/\d{1,12}\/$/.test(book.bookPath)
-    || book.id !== onlineID(book.bookPath) || typeof book.title !== 'string' || !book.title.trim() || book.title.length > 200
+    || !sourceOrigin || !/^[a-zA-Z0-9_-]{1,80}$/.test(book.id) || typeof book.title !== 'string' || !book.title.trim() || book.title.length > 200
     || !/^\/Book\/\d{1,8}\/\d{1,12}\/[1-9]\d{0,15}\.html$/.test(book.chapterPath) || !book.chapterPath.startsWith(book.bookPath)
     || !Number.isInteger(book.position) || book.position < 0 || book.position > 2 * 1024 * 1024) throw new Error('在线书籍信息无效，请保留本地数据并检查文件。');
   const { id, title, source, bookPath, chapterPath, position } = book;
-  return { id, title, kind: 'online', source, bookPath, chapterPath, position };
+  return { id, title, kind: 'online', source, sourceOrigin, bookPath, chapterPath, position };
 }

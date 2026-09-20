@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { invoke } from '../lib/host.js';
 
-const emit = defineEmits(['read']);
+const props = defineProps({ sourceUrl: { type: String, default: '' } });
+const emit = defineEmits(['read', 'settings']);
 const query = ref('');
 const searched = ref('');
 const results = ref(null);
@@ -29,18 +30,23 @@ async function request(action, apply) {
   } finally { if (current === generation) busy.value = false; }
 }
 function search(page = 1, term = query.value.trim()) {
+  if (!props.sourceUrl) { error.value = '请先在设置中填写并保存书源网址。'; return; }
   if (!term) { error.value = '请输入书名或作者。'; return; }
   catalog.value = null;
   results.value = null;
   searched.value = term;
-  return request(() => invoke('source/search', { query: term, page }), value => { results.value = value; });
+  const origin = props.sourceUrl;
+  return request(() => invoke('source/search', { query: term, page, origin, allowNetwork: true }), value => { results.value = value; });
 }
 function openBook(book, refresh = false) {
+  if (!props.sourceUrl) return;
   if (!refresh) catalog.value = null;
   chapterQuery.value = ''; chapterPage.value = 0;
-  return request(() => invoke('source/catalog', { bookPath: book.bookPath, refresh }), value => { catalog.value = value; });
+  const origin = props.sourceUrl;
+  return request(() => invoke('source/catalog', { bookPath: book.bookPath, refresh, origin, allowNetwork: true }), value => { catalog.value = { ...value, sourceOrigin: origin }; });
 }
 function back() { generation++; busy.value = false; error.value = ''; catalog.value = null; }
+watch(() => props.sourceUrl, () => { back(); results.value = null; searched.value = ''; retry = () => search(); }, { flush: 'sync' });
 onBeforeUnmount(() => { generation++; });
 </script>
 
@@ -48,10 +54,11 @@ onBeforeUnmount(() => { generation++; });
   <section class="online-search" aria-label="在线搜索">
     <div class="online-search-form" role="search">
       <label class="sr-only" for="online-query">书名或作者</label>
-      <input id="online-query" v-model="query" class="search" type="search" maxlength="100" placeholder="搜索书名或作者…" @keydown.enter.prevent="search()">
-      <button id="online-submit" class="button" type="button" @click="search()">搜索</button>
+      <input id="online-query" v-model="query" class="search" type="search" maxlength="100" :disabled="!sourceUrl" placeholder="搜索书名或作者…" @keydown.enter.prevent="search()">
+      <button id="online-submit" class="button" type="button" :disabled="!sourceUrl" @click="search()">搜索</button>
     </div>
-    <p class="sidebar-hint">书源：笔趣阁 · 按章缓存到本机</p>
+    <p v-if="sourceUrl" class="sidebar-hint source-address">当前书源：{{ sourceUrl }} · 按章缓存到本机</p>
+    <div v-else class="sidebar-hint"><p>尚未配置书源网址，请先到设置中填写。</p><button id="configure-source" class="button import-button" @click="emit('settings')">设置书源网址</button></div>
     <p v-if="busy" role="status">正在加载…</p>
     <div v-if="error" class="online-error" role="alert"><p>{{ error }}</p><button class="button quiet" @click="retry()">重试</button></div>
     <template v-if="catalog">

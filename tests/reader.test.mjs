@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeText, sectionsFor, paragraphsFor, sectionAt, parseArchive, archiveFor, MAX_TXT_BYTES } from '../src/reader.mjs';
+import { decodeText, sectionsFor, paragraphsFor, sectionAt, parseArchive, archiveFor, MAX_TXT_BYTES, localMetadata, checkLibrarySize } from '../src/reader.mjs';
 
 test('识别 UTF-8、GBK 和带 BOM 的 UTF-16，统一换行', () => {
   assert.equal(decodeText(new TextEncoder().encode('\uFEFF第一章 开始\r\n你好\r世界')).text, '第一章 开始\n你好\n世界');
@@ -88,4 +88,33 @@ test('存档拒绝错误格式、重复 ID，限制不可信的进度与设置',
   assert.equal(restored.settings.theme, 'auto');
   data.books.push(book);
   assert.throws(() => parseArchive(JSON.stringify(data)), /书籍信息/);
+});
+
+test('电子书任意章节名及 UTF-16 位置往返保存，长章分段不丢正文', () => {
+  const text = '卷首🌧️\n雨巷\n' + '中文😀'.repeat(10000) + '\n晴空\n尾声';
+  const toc = [{ title: '雨巷', start: text.indexOf('雨巷') }, { title: '晴空', start: text.indexOf('晴空') }];
+  const book = { id: 'epub', title: '雨', text, toc, format: 'epub', position: toc[1].start };
+  const state = { books: [book], activeId: book.id, settings: {} };
+  const restored = parseArchive(archiveFor(state));
+  assert.deepEqual(restored.books[0], book);
+  const sections = sectionsFor(text, toc);
+  assert.equal(sections[0].title, '卷首');
+  assert.equal(sections[sectionAt(sections, book.position)].title, '晴空');
+  assert.ok(sections.some(item => item.title === '雨巷（续 2）'));
+  assert.equal(sections.map(item => text.slice(item.body, item.end)).join(''), text);
+  assert.doesNotThrow(() => checkLibrarySize(state));
+});
+
+test('目录拒绝乱序、重复、越界、空标题及正文归一化后偏移失效的存档', () => {
+  for (const toc of [null, {}, [{ title: '', start: 0 }], [{ title: 'a', start: -1 }], [{ title: 'a', start: 10 }], [{ title: 'a', start: 0.5 }], [{ title: 'a', start: 1 }, { title: 'b', start: 1 }], [{ title: 'a', start: 2 }, { title: 'b', start: 1 }]]) {
+    assert.throws(() => localMetadata({ text: '1234567890', toc }), /目录/);
+  }
+  const book = { id: 'a', title: '书', text: 'abc\r\ndef', toc: [{ title: '章', start: 5 }] };
+  assert.throws(() => parseArchive(archiveFor({ books: [book] })), /正文与章节目录不一致/);
+  assert.throws(() => localMetadata({ text: 'abc', format: 'pdf' }), /格式/);
+});
+
+test('导入前拒绝超过保存容量的目录', () => {
+  const book = { id: 'a', title: '书', text: '文'.repeat(3000), format: 'epub', toc: Array.from({ length: 3000 }, (_, start) => ({ title: '章'.repeat(200), start })) };
+  assert.throws(() => checkLibrarySize({ books: [book], activeId: 'a', settings: {} }), /书架目录信息过大/);
 });

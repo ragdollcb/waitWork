@@ -2,8 +2,8 @@
 import { computed, ref, watch } from 'vue';
 import OnlineSearch from './OnlineSearch.vue';
 
-const props = defineProps({ books: Array, activeId: String, chapters: Array, chapterIndex: Number, busy: Boolean });
-const emit = defineEmits(['select-book', 'remove-book', 'navigate', 'files', 'read-online', 'refresh-online']);
+const props = defineProps({ books: Array, activeId: String, chapters: Array, chapterIndex: Number, busy: Boolean, sourceUrl: String });
+const emit = defineEmits(['select-book', 'remove-book', 'navigate', 'files', 'read-online', 'refresh-online', 'settings']);
 const encoding = defineModel('encoding', { default: 'auto' });
 const tab = ref('shelf');
 const query = ref('');
@@ -30,7 +30,7 @@ defineExpose({ chooseFiles });
   <aside id="sidebar" class="sidebar" aria-label="书架与目录">
     <div class="sidebar-heading"><span class="eyebrow">文件与书架</span><span id="book-count" class="count">{{ books.length }} 项</span></div>
     <button id="import" class="button import-button" :disabled="busy" @click="chooseFiles"><span aria-hidden="true">＋</span> 打开文件</button>
-    <input id="file-input" ref="fileInput" type="file" accept=".txt,.json" multiple hidden aria-label="选择 TXT 小说或 Wait Work 存档" @change="selectFiles">
+    <input id="file-input" ref="fileInput" type="file" accept=".txt,.epub,.mobi,.json" multiple hidden aria-label="选择 TXT、EPUB、MOBI 小说或 Wait Work 存档" @change="selectFiles">
     <label class="encoding-label" for="encoding">TXT 编码 <select id="encoding" v-model="encoding"><option value="auto">自动识别</option><option value="utf-8">UTF-8</option><option value="gb18030">GB18030 / GBK</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option></select></label>
     <nav class="sidebar-tabs" aria-label="侧栏内容">
       <button id="tab-shelf" :class="{ active: tab === 'shelf' }" :aria-pressed="tab === 'shelf'" @click="tab = 'shelf'">文件</button>
@@ -41,8 +41,8 @@ defineExpose({ chooseFiles });
       <div id="book-list">
         <div v-for="book in books" :key="book.id" class="book-card" :class="{ active: book.id === activeId }">
           <button class="book-open" :aria-label="`阅读 ${book.title}`" :aria-pressed="book.id === activeId" @click="emit('select-book', book.id)">
-            <span class="book-cover" aria-hidden="true">{{ book.kind === 'online' ? 'WEB' : 'TXT' }}</span>
-            <span class="book-info"><span class="book-title">{{ book.title }}</span><span class="book-subtitle">{{ book.kind === 'online' ? '笔趣阁 · 按章缓存' : `${(book.text.length / 1000).toFixed(1)} k · UTF-8` }}</span></span>
+            <span class="book-cover" aria-hidden="true">{{ book.kind === 'online' ? 'WEB' : (book.format || 'txt').toUpperCase() }}</span>
+            <span class="book-info"><span class="book-title">{{ book.title }}</span><span class="book-subtitle">{{ book.kind === 'online' ? `${book.sourceOrigin} · 按章缓存` : `${(book.text.length / 1000).toFixed(1)} k · UTF-8` }}</span></span>
           </button>
           <div class="book-bottom"><span>{{ book.kind === 'online' ? '自动记录章节与位置' : `位置 ${percent(book).toFixed(1)}%` }}</span><button class="remove-book" :aria-label="`移除 ${book.title}`" @click="emit('remove-book', book)">移除</button></div>
           <div v-if="book.kind !== 'online'" class="book-progress"><span :style="{ width: `${percent(book)}%` }"></span></div>
@@ -59,7 +59,7 @@ defineExpose({ chooseFiles });
       </div>
       <p v-if="!matched.length" id="chapter-empty" class="sidebar-hint">没有匹配的章节</p>
     </section>
-    <section :hidden="tab !== 'online'" class="sidebar-panel"><OnlineSearch @read="catalog => { emit('read-online', catalog); tab = 'toc'; }" /></section>
+    <section :hidden="tab !== 'online'" class="sidebar-panel"><OnlineSearch :source-url="sourceUrl" @settings="emit('settings')" @read="catalog => { emit('read-online', catalog); tab = 'toc'; }" /></section>
     <div class="session-note"><span class="session-dot" aria-hidden="true"></span><div><strong>自动保存</strong><p>文件与编辑位置保存在本机。</p></div></div>
   </aside>
 </template>

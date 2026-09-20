@@ -1,8 +1,11 @@
+import { normalizeSourceURL } from './lib/source-config.mjs';
+
 export const MAX_TXT_BYTES = 8 * 1024 * 1024;
 export const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 export const MAX_BOOKS = 20;
 export const MAX_TOTAL_CHARS = 24 * 1024 * 1024;
-export const DEFAULT_SETTINGS = { theme: 'auto', fontSize: 14, lineHeight: 1.7, width: 960, font: 'mono' };
+export const MAX_LIBRARY_BYTES = 1024 * 1024;
+export const DEFAULT_SETTINGS = { theme: 'auto', fontSize: 14, lineHeight: 1.7, width: 960, font: 'mono', sourceURL: '' };
 const SECTION_SIZE = 16000;
 const headingPattern = /^(?:第[\d０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+[章回节卷部篇].*|(?:序章|序言|楔子|引子|尾声|终章|后记|番外)(?:[\s：:、.].*)?|chapter\s+\d+\b.*)$/i;
 
@@ -33,9 +36,9 @@ export function normalizeText(text) {
   return normalized;
 }
 
-export function sectionsFor(text) {
-  const starts = [];
-  for (const match of text.matchAll(/[^\n]+/g)) {
+export function sectionsFor(text, toc = []) {
+  const starts = toc.map(({ title, start }) => ({ title, start, body: start }));
+  for (const match of toc.length ? [] : text.matchAll(/[^\n]+/g)) {
     const line = match[0].trim();
     if (line.length <= 80 && headingPattern.test(line)) starts.push({ title: line, start: match.index, body: match.index + match[0].length });
   }
@@ -85,10 +88,13 @@ export function sectionAt(sections, position) {
 export function validSettings(settings = {}) {
   const value = settings && typeof settings === 'object' ? settings : {};
   const number = (key, min, max) => Number.isFinite(value[key]) ? Math.min(max, Math.max(min, value[key])) : DEFAULT_SETTINGS[key];
+  let sourceURL = '';
+  try { sourceURL = normalizeSourceURL(value.sourceURL ?? ''); } catch { /* 无效配置保持禁用，不能回退到示例网站。 */ }
   return {
     theme: ['auto', 'light', 'dark', 'green'].includes(value.theme) ? value.theme : 'auto',
     fontSize: number('fontSize', 12, 30), lineHeight: number('lineHeight', 1.4, 2.6), width: number('width', 480, 960),
     font: ['mono', 'sans'].includes(value.font) ? value.font : 'mono',
+    sourceURL,
   };
 }
 
@@ -104,11 +110,42 @@ export function parseArchive(json) {
     total += book.text.length;
     if (total > MAX_TOTAL_CHARS) throw new Error('存档正文过大，请减少书籍数量。');
     const text = normalizeText(book.text);
-    return { id: book.id, title: book.title.trim(), text, position: Number.isFinite(book.position) ? Math.max(0, Math.min(text.length, Math.floor(book.position))) : 0 };
+    // 有目录的正文不能再改变长度，否则目录和阅读位置会错位。
+    if (book.toc?.length && text !== book.text) throw new Error('存档正文与章节目录不一致。');
+    return { id: book.id, title: book.title.trim(), text, ...localMetadata(book, text.length), position: Number.isFinite(book.position) ? Math.max(0, Math.min(text.length, Math.floor(book.position))) : 0 };
   });
   return { books, activeId: ids.has(data.activeId) ? data.activeId : books[0]?.id ?? null, settings: validSettings(data.settings) };
 }
 
 export function archiveFor(state) {
-  return JSON.stringify({ format: 'xidu', version: 1, activeId: state.activeId, settings: state.settings, books: state.books.map(({ id, title, text, position }) => ({ id, title, text, position })) });
+  return JSON.stringify({ format: 'xidu', version: 1, activeId: state.activeId, settings: state.settings, books: state.books.map(({ id, title, text, position, format, toc }) => ({ id, title, text, position, format, toc })) });
+}
+
+export function localMetadata(book, length = book.text.length) {
+  const result = {};
+  if (book.format !== undefined) {
+    if (!['txt', 'epub', 'mobi'].includes(book.format)) throw new Error('本地书籍格式无效。');
+    result.format = book.format;
+  }
+  if (book.toc !== undefined) {
+    if (!Array.isArray(book.toc) || book.toc.length > 10000) throw new Error('章节目录无效或超出限制。');
+    let previous = -1;
+    result.toc = book.toc.map(item => {
+      if (!item || typeof item.title !== 'string' || !item.title.trim() || item.title.length > 200
+        || !Number.isInteger(item.start) || item.start <= previous || item.start >= length) throw new Error('章节目录位置或标题无效。');
+      previous = item.start;
+      return { title: item.title, start: item.start };
+    });
+  }
+  return result;
+}
+
+// 为每本书的正文哈希及后续位置、设置变化留足空间，导入前即可检查，无须先写磁盘。
+export function checkLibrarySize(state) {
+  const books = state.books.map(book => book.kind === 'online' ? book : {
+    id: book.id, title: book.title, position: book.position, ...localMetadata(book),
+    chunks: Array(128).fill('0'.repeat(64)),
+  });
+  const size = new TextEncoder().encode(JSON.stringify({ revision: Number.MAX_SAFE_INTEGER, data: { books, activeId: state.activeId, settings: state.settings } })).length;
+  if (size > MAX_LIBRARY_BYTES - 8192) throw new Error('书架目录信息过大，请减少章节或移除部分书籍后重试。');
 }

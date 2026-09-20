@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	dbx "github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk"
 	"golang.org/x/net/html"
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
@@ -27,6 +28,24 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 func response(r *http.Request, status int, body string) *http.Response {
 	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"text/html"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}
 }
+
+// 旧解析用例显式选择书源；缺省禁用行为由配置专项用例单独验证。
+func sourceCall(t *testing.T, s *store, method string, params any) (any, *dbx.PluginError) {
+	t.Helper()
+	if strings.HasPrefix(method, "source/") {
+		raw, _ := json.Marshal(params)
+		var values map[string]any
+		_ = json.Unmarshal(raw, &values)
+		if values == nil {
+			values = map[string]any{}
+		}
+		values["origin"] = legacySourceOrigin
+		values["allowNetwork"] = true
+		params = values
+	}
+	return call(t, s, method, params)
+}
+
 func fixtureStore(t *testing.T) (*store, *atomic.Int32) {
 	t.Helper()
 	calls := &atomic.Int32{}
@@ -52,7 +71,7 @@ func fixtureStore(t *testing.T) (*store, *atomic.Int32) {
 
 func TestSourceSearchAndParsing(t *testing.T) {
 	s, _ := fixtureStore(t)
-	v, err := call(t, s, "source/search", map[string]any{"query": "神秘", "page": 1})
+	v, err := sourceCall(t, s, "source/search", map[string]any{"query": "神秘", "page": 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,11 +80,11 @@ func TestSourceSearchAndParsing(t *testing.T) {
 		t.Fatalf("搜索结果不正确: %+v", result)
 	}
 	doc, _ := html.Parse(strings.NewReader(catalogHTML))
-	single, e := parseSearch(doc, testBookPath, 1)
+	single, e := parseSearch(doc, legacySourceOrigin, testBookPath, 1)
 	if e != nil || len(single.Books) != 1 {
 		t.Fatal("唯一结果跳转未识别", e)
 	}
-	catalog, e := parseCatalog(doc, testBookPath)
+	catalog, e := parseCatalog(doc, legacySourceOrigin, testBookPath)
 	if e != nil || len(catalog.Chapters) != 2 || catalog.Chapters[0].Path != testChapterPath || catalog.Author != "测试作者" {
 		t.Fatal("目录解析错误", catalog, e)
 	}
@@ -75,7 +94,7 @@ func TestSourceSearchAndParsing(t *testing.T) {
 		t.Fatal("正文清理错误", chapter, e)
 	}
 	doc, _ = html.Parse(strings.NewReader(`<table class="grid"><tr><th>书名</th></tr></table>`))
-	empty, e := parseSearch(doc, searchPath, 1)
+	empty, e := parseSearch(doc, legacySourceOrigin, searchPath, 1)
 	if e != nil || len(empty.Books) != 0 {
 		t.Fatal("空结果处理错误", e)
 	}
@@ -89,18 +108,18 @@ func TestSourceCacheRestoreAndRefreshFailure(t *testing.T) {
 	s, calls := fixtureStore(t)
 	params := map[string]any{"bookPath": testBookPath, "chapterPath": testChapterPath}
 	for _, method := range []string{"source/catalog", "source/chapter"} {
-		if _, err := call(t, s, method, params); err != nil {
+		if _, err := sourceCall(t, s, method, params); err != nil {
 			t.Fatal(err)
 		}
 	}
 	id := onlineID(testBookPath)
 	value := snapshot{Data: &library{Books: []book{{ID: id, Kind: "online", Source: "biquge001", BookPath: testBookPath, ChapterPath: testChapterPath, Title: "测试小说", Position: 3}}, ActiveID: &id, Settings: json.RawMessage(`{}`)}}
-	if _, err := call(t, s, "reader/save", value); err != nil {
+	if _, err := sourceCall(t, s, "reader/save", value); err != nil {
 		t.Fatal(err)
 	}
 	restored := &store{dir: s.dir, client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(r, 503, ""), nil })}}
 	for _, method := range []string{"source/catalog", "source/chapter"} {
-		if _, err := call(t, restored, method, params); err != nil {
+		if _, err := sourceCall(t, restored, method, params); err != nil {
 			t.Fatal("离线缓存恢复失败", err)
 		}
 	}
@@ -108,32 +127,32 @@ func TestSourceCacheRestoreAndRefreshFailure(t *testing.T) {
 		t.Fatal("缓存命中后再次联网")
 	}
 	params["refresh"] = true
-	if _, err := call(t, restored, "source/catalog", params); err == nil {
+	if _, err := sourceCall(t, restored, "source/catalog", params); err == nil {
 		t.Fatal("未报告刷新失败")
 	}
 	params["refresh"] = false
-	if _, err := call(t, restored, "source/catalog", params); err != nil {
+	if _, err := sourceCall(t, restored, "source/catalog", params); err != nil {
 		t.Fatal("刷新失败破坏旧目录", err)
 	}
-	v, err := call(t, restored, "reader/load", nil)
+	v, err := sourceCall(t, restored, "reader/load", nil)
 	if err != nil || v.(snapshot).Data.Books[0].Position != 3 {
 		t.Fatal("在线进度丢失", err)
 	}
-	if _, err := call(t, restored, "reader/save", snapshot{Revision: 1, Data: &library{Books: []book{}, Settings: json.RawMessage(`{}`)}}); err != nil {
+	if _, err := sourceCall(t, restored, "reader/save", snapshot{Revision: 1, Data: &library{Books: []book{}, Settings: json.RawMessage(`{}`)}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(restored.onlineDir(testBookPath)); !os.IsNotExist(err) {
+	if _, err := os.Stat(restored.onlineDir(legacySourceOrigin, testBookPath)); !os.IsNotExist(err) {
 		t.Fatal("删除后缓存仍然存在")
 	}
 }
 
 func TestSourceValidationAndCacheWriteFailure(t *testing.T) {
 	for _, raw := range []string{"https://evil.test/Book/19/19392/", "https://www.biquge001.com@evil.test/Book/19/19392/", "/login.php", "/Book/19/19392/../", "file:///Book/19/19392/", "https://www.biquge001.com:443/Book/19/19392/"} {
-		if _, err := sourceURL(raw); err == nil {
+		if _, err := sourceURL(legacySourceOrigin, raw); err == nil {
 			t.Errorf("接受非法地址 %s", raw)
 		}
 	}
-	u, err := sourceURL("http://www.biquge001.com" + testChapterPath)
+	u, err := sourceURL(legacySourceOrigin, "http://www.biquge001.com"+testChapterPath)
 	if err != nil || u.Scheme != "https" {
 		t.Fatal("未升级 HTTPS")
 	}
@@ -141,7 +160,7 @@ func TestSourceValidationAndCacheWriteFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(s.dir, "online"), []byte("阻止创建目录"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	v, rpcErr := call(t, s, "source/chapter", map[string]string{"bookPath": testBookPath, "chapterPath": testChapterPath})
+	v, rpcErr := sourceCall(t, s, "source/chapter", map[string]string{"bookPath": testBookPath, "chapterPath": testChapterPath})
 	if rpcErr != nil || v.(sourceText).Cached || v.(sourceText).Warning == "" || v.(sourceText).Text == "" {
 		t.Fatal("缓存失败应仍允许阅读并提示", v, rpcErr)
 	}
@@ -151,7 +170,7 @@ func TestSourceNetworkDoesNotBlockSaveOrRestoreDeletedCache(t *testing.T) {
 	s, _ := fixtureStore(t)
 	id := onlineID(testBookPath)
 	value := snapshot{Data: &library{Books: []book{{ID: id, Kind: "online", Source: "biquge001", BookPath: testBookPath, ChapterPath: testChapterPath, Title: "测试", Position: 0}}, ActiveID: &id, Settings: json.RawMessage(`{}`)}}
-	if _, err := call(t, s, "reader/save", value); err != nil {
+	if _, err := sourceCall(t, s, "reader/save", value); err != nil {
 		t.Fatal(err)
 	}
 	started, release, done := make(chan struct{}), make(chan struct{}), make(chan bool, 1)
@@ -161,13 +180,13 @@ func TestSourceNetworkDoesNotBlockSaveOrRestoreDeletedCache(t *testing.T) {
 		return response(r, 200, chapterHTML), nil
 	})}
 	go func() {
-		_, err := call(t, s, "source/chapter", map[string]string{"bookPath": testBookPath, "chapterPath": testChapterPath})
+		_, err := sourceCall(t, s, "source/chapter", map[string]string{"bookPath": testBookPath, "chapterPath": testChapterPath})
 		done <- err != nil
 	}()
 	<-started
 	saved := make(chan bool, 1)
 	go func() {
-		_, err := call(t, s, "reader/save", snapshot{Revision: 1, Data: &library{Books: []book{}, Settings: json.RawMessage(`{}`)}})
+		_, err := sourceCall(t, s, "reader/save", snapshot{Revision: 1, Data: &library{Books: []book{}, Settings: json.RawMessage(`{}`)}})
 		saved <- err == nil
 	}()
 	select {
@@ -183,7 +202,7 @@ func TestSourceNetworkDoesNotBlockSaveOrRestoreDeletedCache(t *testing.T) {
 	if !<-done {
 		t.Fatal("删除前发出的请求未失效")
 	}
-	if _, err := os.Stat(s.onlineDir(testBookPath)); !os.IsNotExist(err) {
+	if _, err := os.Stat(s.onlineDir(legacySourceOrigin, testBookPath)); !os.IsNotExist(err) {
 		t.Fatal("迟到请求重新生成缓存")
 	}
 }
@@ -198,7 +217,7 @@ func TestSourceRejectsRedirectsAndOversizedResponses(t *testing.T) {
 				res.Header.Set("Location", target)
 				return res, nil
 			})}}
-			if _, _, err := s.fetchPage(testBookPath); err == nil || calls != 1 {
+			if _, _, err := s.fetchPage(legacySourceOrigin, testBookPath); err == nil || calls != 1 {
 				t.Fatal("不安全的重定向被执行", calls, err)
 			}
 		})
@@ -207,7 +226,7 @@ func TestSourceRejectsRedirectsAndOversizedResponses(t *testing.T) {
 		s := &store{client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			return response(r, status, strings.Repeat("x", onlinePageLimit+1)), nil
 		})}}
-		if _, _, err := s.fetchPage(testBookPath); err == nil {
+		if _, _, err := s.fetchPage(legacySourceOrigin, testBookPath); err == nil {
 			t.Fatal("异常或超限响应未拒绝", status)
 		}
 	}
@@ -219,7 +238,7 @@ func TestSourceLive(t *testing.T) {
 	}
 	s := &store{dir: t.TempDir()}
 	for _, method := range []string{"source/search", "source/catalog", "source/chapter"} {
-		v, err := call(t, s, method, map[string]any{"query": "神秘复苏", "page": 1, "bookPath": testBookPath, "chapterPath": testChapterPath})
+		v, err := sourceCall(t, s, method, map[string]any{"query": "神秘复苏", "page": 1, "bookPath": testBookPath, "chapterPath": testChapterPath})
 		if err != nil {
 			t.Fatal(method, err)
 		}

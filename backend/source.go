@@ -21,7 +21,6 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
-const sourceOrigin = "https://www.biquge001.com"
 const searchPath = "/modules/article/search.php"
 const onlinePageLimit = 2 * 1024 * 1024
 
@@ -63,25 +62,30 @@ func onlineID(path string) string {
 func validChapter(bookPath, chapterPath string) bool {
 	return chapterPathPattern.MatchString(chapterPath) && strings.HasPrefix(chapterPath, bookPath)
 }
-func (s *store) onlineDir(path string) string { return filepath.Join(s.dir, "online", onlineID(path)) }
+func (s *store) onlineDir(origin, path string) string {
+	return filepath.Join(s.dir, "online", sourceCacheKey(origin, path))
+}
 
 // 只接受已适配的同站页面；网页里的 HTTP 链接和重定向也升级到 HTTPS。
-func sourceURL(raw string) (*url.URL, error) {
-	base, _ := url.Parse(sourceOrigin + "/")
+func sourceURL(origin, raw string) (*url.URL, error) {
+	base, err := url.Parse(origin + "/")
+	if err != nil || base.Host == "" {
+		return nil, errors.New("请先在设置中配置书源网址")
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return nil, errors.New("网站地址无效")
 	}
 	u = base.ResolveReference(u)
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host != "www.biquge001.com" || u.User != nil || u.Fragment != "" || (u.Path != searchPath && !bookPathPattern.MatchString(u.Path) && !chapterPathPattern.MatchString(u.Path)) || u.RawPath != "" {
-		return nil, errors.New("只支持笔趣阁的搜索、目录和章节地址")
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host != base.Host || u.User != nil || u.Fragment != "" || (u.Path != searchPath && !bookPathPattern.MatchString(u.Path) && !chapterPathPattern.MatchString(u.Path)) || u.RawPath != "" {
+		return nil, errors.New("只支持已配置网站的搜索、目录和章节地址")
 	}
 	u.Scheme = "https"
 	return u, nil
 }
 
-func (s *store) fetchPage(raw string) (*html.Node, string, error) {
-	u, err := sourceURL(raw)
+func (s *store) fetchPage(origin, raw string) (*html.Node, string, error) {
+	u, err := sourceURL(origin, raw)
 	if err != nil {
 		return nil, "", err
 	}
@@ -94,7 +98,7 @@ func (s *store) fetchPage(raw string) (*html.Node, string, error) {
 		if len(via) >= 5 {
 			return errors.New("网站重定向次数过多")
 		}
-		checked, err := sourceURL(req.URL.String())
+		checked, err := sourceURL(origin, req.URL.String())
 		if err == nil {
 			req.URL = checked
 		}
@@ -102,7 +106,7 @@ func (s *store) fetchPage(raw string) (*html.Node, string, error) {
 	}
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 waitWork/0.5")
-	req.Header.Set("Referer", sourceOrigin+"/")
+	req.Header.Set("Referer", origin+"/")
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, "", errors.New("无法连接书源，请检查网络后重试")
@@ -214,7 +218,7 @@ func plainText(root *html.Node, clean bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func parseCatalog(doc *html.Node, path string) (sourceCatalog, error) {
+func parseCatalog(doc *html.Node, origin, path string) (sourceCatalog, error) {
 	info := element(doc, "id", "info")
 	list := element(doc, "id", "list")
 	result := sourceCatalog{sourceBook: sourceBook{BookPath: path, Title: plainText(tag(info, "h1"), false)}, Intro: plainText(element(doc, "id", "intro"), false), Chapters: []sourceChapter{}}
@@ -232,7 +236,7 @@ func parseCatalog(doc *html.Node, path string) (sourceCatalog, error) {
 	}
 	seen := map[string]bool{}
 	for _, a := range nodes(list, func(n *html.Node) bool { return n.Data == "a" }) {
-		u, err := sourceURL(resolveLink(path, attr(a, "href")))
+		u, err := sourceURL(origin, resolveLink(origin, path, attr(a, "href")))
 		title := plainText(a, false)
 		if err != nil || !validChapter(path, u.Path) || seen[u.Path] || title == "" {
 			continue
@@ -245,18 +249,18 @@ func parseCatalog(doc *html.Node, path string) (sourceCatalog, error) {
 	}
 	return result, nil
 }
-func resolveLink(base, link string) string {
-	u, _ := url.Parse(sourceOrigin + base)
+func resolveLink(origin, base, link string) string {
+	u, _ := url.Parse(origin + base)
 	v, err := url.Parse(link)
 	if err != nil {
 		return ""
 	}
 	return u.ResolveReference(v).String()
 }
-func parseSearch(doc *html.Node, finalPath string, page int) (sourceSearch, error) {
+func parseSearch(doc *html.Node, origin, finalPath string, page int) (sourceSearch, error) {
 	result := sourceSearch{Books: []sourceBook{}, Page: page}
 	if bookPathPattern.MatchString(finalPath) {
-		catalog, err := parseCatalog(doc, finalPath)
+		catalog, err := parseCatalog(doc, origin, finalPath)
 		if err == nil {
 			result.Books = append(result.Books, catalog.sourceBook)
 		}
@@ -276,7 +280,7 @@ func parseSearch(doc *html.Node, finalPath string, page int) (sourceSearch, erro
 		if a == nil {
 			continue
 		}
-		u, err := sourceURL(resolveLink(searchPath, attr(a, "href")))
+		u, err := sourceURL(origin, resolveLink(origin, searchPath, attr(a, "href")))
 		if err != nil || !bookPathPattern.MatchString(u.Path) || seen[u.Path] {
 			continue
 		}
@@ -284,7 +288,7 @@ func parseSearch(doc *html.Node, finalPath string, page int) (sourceSearch, erro
 		result.Books = append(result.Books, sourceBook{BookPath: u.Path, Title: plainText(a, false), Author: plainText(cells[2], false), Latest: plainText(cells[1], false)})
 	}
 	for _, a := range nodes(element(doc, "id", "pagelink"), func(n *html.Node) bool { return n.Data == "a" }) {
-		u, err := sourceURL(resolveLink(searchPath, attr(a, "href")))
+		u, err := sourceURL(origin, resolveLink(origin, searchPath, attr(a, "href")))
 		if err == nil && u.Path == searchPath {
 			p, _ := strconv.Atoi(u.Query().Get("page"))
 			if p > page {
@@ -305,16 +309,28 @@ func parseChapter(doc *html.Node, path string) (sourceText, error) {
 func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.PluginError) {
 	fail := func(err error) (any, *dbx.PluginError) { return nil, dbx.NewError(-32000, err.Error()) }
 	var p struct {
-		Query       string `json:"query"`
-		Page        int    `json:"page"`
-		BookPath    string `json:"bookPath"`
-		ChapterPath string `json:"chapterPath"`
-		Refresh     bool   `json:"refresh"`
+		Origin       string `json:"origin"`
+		AllowNetwork bool   `json:"allowNetwork"`
+		Query        string `json:"query"`
+		Page         int    `json:"page"`
+		BookPath     string `json:"bookPath"`
+		ChapterPath  string `json:"chapterPath"`
+		Refresh      bool   `json:"refresh"`
 	}
 	if len(raw) > 4096 || json.Unmarshal(raw, &p) != nil {
 		return nil, dbx.NewError(-32602, "书源请求无效")
 	}
+	if p.Origin == "" {
+		return fail(errors.New("请先在设置中填写并保存书源网址"))
+	}
+	origin, err := normalizeSourceOrigin(p.Origin)
+	if err != nil {
+		return fail(err)
+	}
 	if method == "source/search" {
+		if !p.AllowNetwork {
+			return fail(errors.New("请先在设置中启用书源网址"))
+		}
 		p.Query = strings.TrimSpace(p.Query)
 		if p.Query == "" || len([]rune(p.Query)) > 100 || p.Page < 1 || p.Page > 10000 {
 			return nil, dbx.NewError(-32602, "请输入有效的搜索词和页码")
@@ -323,11 +339,11 @@ func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.Plug
 		if err != nil {
 			return fail(errors.New("搜索词包含书源不支持的字符，请使用中文或英文"))
 		}
-		doc, path, err := s.fetchPage(searchPath + "?searchkey=" + url.QueryEscape(encoded) + "&page=" + strconv.Itoa(p.Page))
+		doc, path, err := s.fetchPage(origin, searchPath+"?searchkey="+url.QueryEscape(encoded)+"&page="+strconv.Itoa(p.Page))
 		if err != nil {
 			return fail(err)
 		}
-		result, err := parseSearch(doc, path, p.Page)
+		result, err := parseSearch(doc, origin, path, p.Page)
 		if err != nil {
 			return fail(err)
 		}
@@ -344,9 +360,10 @@ func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.Plug
 		name = filepath.Base(p.ChapterPath) + ".json"
 		path = p.ChapterPath
 	}
-	cachePath := filepath.Join(s.onlineDir(p.BookPath), name)
+	cacheKey := sourceCacheKey(origin, p.BookPath)
+	cachePath := filepath.Join(s.onlineDir(origin, p.BookPath), name)
 	s.mu.Lock()
-	epoch := s.onlineEpoch[p.BookPath]
+	epoch := s.onlineEpoch[cacheKey]
 	data, cacheErr := os.ReadFile(cachePath)
 	s.mu.Unlock()
 	if cacheErr == nil && !p.Refresh {
@@ -363,7 +380,10 @@ func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.Plug
 			}
 		}
 	}
-	doc, finalPath, err := s.fetchPage(path)
+	if !p.AllowNetwork {
+		return fail(errors.New("本章或目录尚未缓存，请在设置中保存本书的来源网址后重试"))
+	}
+	doc, finalPath, err := s.fetchPage(origin, path)
 	if err != nil {
 		return fail(err)
 	}
@@ -372,7 +392,7 @@ func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.Plug
 	}
 	var result any
 	if method == "source/catalog" {
-		result, err = parseCatalog(doc, path)
+		result, err = parseCatalog(doc, origin, path)
 	} else {
 		result, err = parseChapter(doc, path)
 	}
@@ -389,7 +409,7 @@ func (s *store) handleSource(method string, raw json.RawMessage) (any, *dbx.Plug
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// 删除书籍会改变代次，阻止先前发出的请求重新生成已删除的缓存。
-	if epoch != s.onlineEpoch[p.BookPath] {
+	if epoch != s.onlineEpoch[cacheKey] {
 		return fail(errors.New("书籍已移除，请重新选择"))
 	}
 	err = writeAtomic(cachePath, data)
