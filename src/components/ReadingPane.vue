@@ -64,7 +64,8 @@ async function restore() {
 function onScroll() { cancelAnimationFrame(scrollFrame); scrollFrame = requestAnimationFrame(capture); }
 function focus() { scroller.value?.focus({ preventScroll: true }); }
 function pageDown(up = false) { const el = scroller.value; if (el) el.scrollBy({ top: el.clientHeight * (up ? -0.85 : 0.85), behavior: 'instant' }); }
-watch(() => [props.book?.id, props.chapterIndex, props.hidden, props.loading, props.book?.text], restore, { flush: 'post', immediate: true });
+// 在线进度更新会替换 book 对象；逐项比较，避免普通滚动触发位置恢复。
+watch([() => props.book?.id, () => props.chapterIndex, () => props.hidden, () => props.loading, () => props.book?.text], restore, { flush: 'post', immediate: true });
 onBeforeUnmount(() => { generation++; cancelAnimationFrame(layoutFrame); cancelAnimationFrame(scrollFrame); });
 defineExpose({ capture, restore, focus, pageDown });
 </script>

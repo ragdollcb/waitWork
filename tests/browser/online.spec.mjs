@@ -3,10 +3,11 @@ import { mkdir } from 'node:fs/promises';
 
 const bookPath = '/Book/19/19392/';
 const chapters = [1, 2, 3].map((n) => ({ path: `${bookPath}${13590538 + n}.html`, title: `第${n}章 测试章节` }));
-const catalog = { bookPath, title: '在线测试小说', author: '测试作者', intro: '固定书源测试简介。', chapters };
 const body = (index) => `第 ${index + 1} 章的正文。\n` + '这里是用于测试阅读进度的原创段落。\n'.repeat(150) + '<img src=x onerror="window.pwned=true">';
 
-async function fixtures(page) {
+async function fixtures(page, chapterCount = 3) {
+  const chapters = Array.from({ length: chapterCount }, (_, index) => ({ path: `${bookPath}${13590539 + index}.html`, title: `第${index + 1}章 测试章节` }));
+  const catalog = { bookPath, title: '在线测试小说', author: '测试作者', intro: '固定书源测试简介。', chapters };
   const cache = new Map();
   const calls = [];
   const control = { offline: false, gate: null, refreshFails: false, searchFails: false, empty: false };
@@ -46,7 +47,7 @@ async function configure(reader, origin = 'https://www.biquge001.com') {
   await reader.locator('#save-source').click();
   await reader.locator('#close-settings').click();
 }
-async function start(page) {
+async function start(page, chapterCount = 3) {
   await page.goto('http://127.0.0.1:5191/sandbox');
   const reader = await reveal(page);
   await configure(reader);
@@ -56,7 +57,7 @@ async function start(page) {
   await reader.locator('#online-submit').click();
   await reader.locator('.online-result').click();
   await expect(reader.locator('.online-intro')).toContainText('测试简介');
-  await expect(reader.locator('.online-search .chapter-button')).toHaveCount(3);
+  await expect(reader.locator('.online-search .chapter-button')).toHaveCount(Math.min(200, chapterCount));
   await reader.locator('#online-start').click();
   await expect(reader.locator('#chapter-title')).toHaveText(`-- ${chapters[0].title}`);
   return reader;
@@ -84,6 +85,81 @@ test('在线搜索、目录、翻章、进度恢复与离线缓存，正文不�
   await expect(reader.locator('#chapter-title')).toContainText(chapters[2].title);
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/online-reading.png' });
+});
+
+test('大纲滚动到底自动追加章节，搜索结果也能继续加载', async ({ page }) => {
+  await fixtures(page, 450);
+  const reader = await start(page, 450);
+  const buttons = reader.locator('#chapter-list .chapter-button');
+  const panel = reader.locator('#toc-panel');
+  await expect(buttons).toHaveCount(200);
+  await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(buttons).toHaveCount(400);
+  await expect(reader.locator('#chapter-title')).toContainText(chapters[0].title);
+  await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(buttons).toHaveCount(450);
+  await buttons.nth(239).click();
+  await expect(reader.locator('#chapter-title')).toContainText('第240章 测试章节');
+  await reader.locator('#chapter-search').fill('测试章节');
+  await expect(buttons).toHaveCount(200);
+  await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(buttons).toHaveCount(400);
+  await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(buttons).toHaveCount(450);
+  await reader.locator('#chapter-search').fill('不存在的章节');
+  await expect(buttons).toHaveCount(0);
+  await expect(reader.locator('#chapter-empty')).toBeVisible();
+});
+
+test('大纲向上连续加载到第一章，并保持原章节位置', async ({ page }) => {
+  await fixtures(page, 650);
+  const reader = await start(page, 650);
+  const panel = reader.locator('#toc-panel');
+  const buttons = reader.locator('#chapter-list .chapter-button');
+  await reader.locator('#chapter-search').fill('第600章');
+  await buttons.first().click();
+  await expect(reader.locator('#chapter-title')).toContainText('第600章');
+  await reader.locator('#chapter-search').fill('');
+  await expect(buttons.first()).toContainText('第550章');
+  for (const first of [350, 150, 1]) {
+    const offset = await panel.evaluate(async el => {
+      // 先离开顶部，确保下一次拖到顶部产生真实 scroll 事件。
+      el.scrollTop = 250;
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      el.scrollTop = 0;
+      const anchor = el.querySelector('.chapter-button');
+      const before = anchor.getBoundingClientRect().top;
+      for (let i = 0; i < 4; i++) await new Promise(requestAnimationFrame);
+      return { before, after: anchor.getBoundingClientRect().top };
+    });
+    await expect(buttons.first()).toContainText(`第${first}章`);
+    expect(Math.abs(offset.after - offset.before)).toBeLessThanOrEqual(1);
+    await expect(reader.locator('#chapter-title')).toContainText('第600章');
+  }
+  await buttons.first().click();
+  await expect(reader.locator('#chapter-title')).toContainText(chapters[0].title);
+});
+
+test('在线正文滚动更新进度时不回弹', async ({ page }) => {
+  await fixtures(page);
+  const reader = await start(page);
+  const positions = await reader.locator('#reading-scroll').evaluate(async el => {
+    const settle = async () => {
+      for (let i = 0; i < 8; i++) await new Promise(requestAnimationFrame);
+    };
+    await settle();
+    const positions = [];
+    for (const top of [317, 653, 991, 1327, 867]) {
+      el.scrollTop = top;
+      const before = el.scrollTop;
+      await settle();
+      positions.push({ before, after: el.scrollTop });
+    }
+    return positions;
+  });
+  for (const { before, after } of positions) expect(after).toBe(before);
+  await expect(reader.locator('#save-status')).toHaveText('已自动保存');
 });
 
 test('快速切章和隐藏期间迟到响应不覆盖新章节、不展开正文', async ({ page }) => {

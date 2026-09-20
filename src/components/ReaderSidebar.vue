@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import OnlineSearch from './OnlineSearch.vue';
 
 const props = defineProps({ books: Array, activeId: String, chapters: Array, chapterIndex: Number, busy: Boolean, sourceUrl: String });
@@ -8,12 +8,40 @@ const encoding = defineModel('encoding', { default: 'auto' });
 const tab = ref('shelf');
 const query = ref('');
 const fileInput = ref();
+const visibleCount = ref(200);
+const precedingCount = ref(0);
 const matched = computed(() => props.chapters.map((chapter, index) => ({ chapter, index })).filter(({ chapter }) => chapter.title.toLowerCase().includes(query.value.trim().toLowerCase())));
-const start = computed(() => query.value.trim() ? 0 : Math.max(0, props.chapterIndex - 50));
-const shown = computed(() => matched.value.slice(start.value, start.value + 200));
+const start = computed(() => query.value.trim() ? 0 : Math.max(0, props.chapterIndex - 50 - precedingCount.value));
+const shown = computed(() => matched.value.slice(start.value, start.value + visibleCount.value));
 const percent = (book) => book.kind === 'online' ? 0 : Math.min(100, book.position / book.text.length * 100);
 const online = computed(() => props.books.find(book => book.id === props.activeId)?.kind === 'online');
 watch(() => props.activeId, () => { query.value = ''; });
+watch([() => props.activeId, query], () => { visibleCount.value = 200; });
+watch([() => props.activeId, () => props.chapterIndex, query], () => { precedingCount.value = 0; });
+
+let prepending = false;
+async function loadMoreChapters(event) {
+  const el = event.currentTarget;
+  if (prepending) return;
+  if (start.value > 0 && el.scrollTop <= 80) {
+    const anchor = el.querySelector('.chapter-button');
+    const top = anchor?.getBoundingClientRect().top;
+    const count = Math.min(200, start.value);
+    prepending = true;
+    precedingCount.value += count;
+    visibleCount.value += count;
+    await nextTick();
+    // 保持原章节在视口中的位置，同时兼容浏览器自身的滚动锚定。
+    if (anchor?.isConnected) el.scrollTop += anchor.getBoundingClientRect().top - top;
+    prepending = false;
+    return;
+  }
+  // 提前追加下一批，浏览目录不需要切换正在阅读的章节。
+  const remaining = matched.value.length - start.value;
+  if (visibleCount.value < remaining && el.scrollHeight - el.scrollTop - el.clientHeight <= 80) {
+    visibleCount.value = Math.min(visibleCount.value + 200, remaining);
+  }
+}
 
 function chooseFiles() {
   if (props.busy) return;
@@ -50,12 +78,12 @@ defineExpose({ chooseFiles });
         <p v-if="!books.length" class="sidebar-hint">书架暂无书籍。</p>
       </div>
     </section>
-    <section id="toc-panel" :hidden="tab !== 'toc'" class="sidebar-panel" aria-label="章节目录">
+    <section id="toc-panel" :hidden="tab !== 'toc'" class="sidebar-panel" aria-label="章节目录" @scroll.passive="loadMoreChapters">
       <button v-if="online" id="refresh-online" class="button quiet" @click="emit('refresh-online')">刷新目录</button>
       <label class="sr-only" for="chapter-search">搜索章节</label><input id="chapter-search" v-model="query" class="search" placeholder="搜索章节…" type="search">
       <div id="chapter-list">
         <button v-for="{ chapter, index } in shown" :key="index" class="chapter-button" :class="{ active: index === chapterIndex }" :aria-current="index === chapterIndex ? 'location' : undefined" @click="emit('navigate', index)"><span class="chapter-index">{{ String(index + 1).padStart(2, '0') }}</span><span>{{ chapter.title }}</span></button>
-        <p v-if="matched.length > shown.length" class="sidebar-hint">当前显示 {{ start + 1 }}–{{ start + shown.length }} 节，共 {{ matched.length }} 节。输入章节名可快速查找。</p>
+        <p v-if="matched.length > shown.length" class="sidebar-hint">当前显示 {{ start + 1 }}–{{ start + shown.length }} 节，共 {{ matched.length }} 节。滚动到顶部或底部加载更多。输入章节名可快速查找。</p>
       </div>
       <p v-if="!matched.length" id="chapter-empty" class="sidebar-hint">没有匹配的章节</p>
     </section>
