@@ -8,7 +8,7 @@ import QueryCover from '../components/QueryCover.vue';
 import { observePrivacy } from '../lib/privacy.js';
 import { MAX_TXT_BYTES, MAX_ARCHIVE_BYTES, MAX_BOOKS, MAX_TOTAL_CHARS, DEFAULT_SETTINGS, decodeText, sectionsFor, sectionAt, parseArchive } from '../reader.mjs';
 import { sample } from '../sample.mjs';
-import { createStorage } from '../lib/host.js';
+import { createStorage, invoke, onlineID } from '../lib/host.js';
 import { createAutosave } from '../lib/autosave.mjs';
 
 const state = reactive({ books: [{ ...sample }], activeId: sample.id, settings: { ...DEFAULT_SETTINGS } });
@@ -64,13 +64,87 @@ let lastFocus;
 let disposed = false;
 
 const activeBook = computed(() => state.books.find((book) => book.id === state.activeId));
+const onlineCatalog = shallowRef(null);
+const onlineText = ref('');
+const onlineLoading = ref(false);
+const onlineError = ref('');
+const onlineWarning = ref('');
+let onlineGeneration = 0;
+let refreshGeneration = 0;
+const displayBook = computed(() => activeBook.value?.kind === 'online' ? { ...activeBook.value, text: onlineText.value } : activeBook.value);
+
+async function loadOnline() {
+  const current = ++onlineGeneration;
+  const book = activeBook.value;
+  onlineText.value = '';
+  onlineError.value = '';
+  onlineWarning.value = '';
+  onlineLoading.value = book?.kind === 'online';
+  if (!onlineLoading.value) { onlineCatalog.value = null; return; }
+  if (onlineCatalog.value?.bookPath !== book.bookPath) onlineCatalog.value = null;
+  const chapterPath = book.chapterPath;
+  const valid = () => !disposed && current === onlineGeneration && activeBook.value === book && book.chapterPath === chapterPath;
+  try {
+    const catalog = onlineCatalog.value || await invoke('source/catalog', { bookPath: book.bookPath });
+    if (!valid()) return;
+    onlineCatalog.value = catalog;
+    if (!catalog.chapters.some(chapter => chapter.path === chapterPath)) throw new Error('原阅读章节已不在目录中，请从大纲选择其他章节。');
+    const chapter = await invoke('source/chapter', { bookPath: book.bookPath, chapterPath });
+    if (!valid()) return;
+    onlineText.value = chapter.text;
+    book.position = Math.min(book.position, chapter.text.length);
+    onlineWarning.value = [catalog.warning, chapter.warning].filter(Boolean).join('\n');
+  } catch (error) { if (valid()) onlineError.value = error.message || '加载章节失败，请重试。'; }
+  finally { if (valid()) { onlineLoading.value = false; await nextTick(); pane.value?.restore(); } }
+}
+watch(() => [initialized.value, activeBook.value?.id, activeBook.value?.chapterPath], () => { if (initialized.value) void loadOnline(); }, { flush: 'sync' });
+
+function retryOnline() {
+  pane.value?.capture();
+  if (onlineCatalog.value?.warning) onlineCatalog.value = null;
+  return loadOnline();
+}
+
+async function refreshOnline() {
+  const book = activeBook.value;
+  if (book?.kind !== 'online') return;
+  const current = ++refreshGeneration;
+  try {
+    const catalog = await invoke('source/catalog', { bookPath: book.bookPath, refresh: true });
+    if (disposed || current !== refreshGeneration || activeBook.value !== book) return;
+    onlineGeneration++;
+    onlineCatalog.value = catalog;
+    announce(catalog.warning || '目录已更新。');
+    await loadOnline();
+  } catch (error) { if (!disposed && current === refreshGeneration && activeBook.value === book) announce(error.message); }
+}
+function readOnline({ catalog, chapterPath }) {
+  if (!initialized.value) return;
+  const id = onlineID(catalog.bookPath);
+  const existing = state.books.find(book => book.id === id);
+  const onlySample = state.books.length === 1 && state.books[0].id === sample.id;
+  if (!existing && !onlySample && state.books.length >= MAX_BOOKS) { announce(`书架最多放 ${MAX_BOOKS} 本书，请先移除部分书籍。`); return; }
+  pane.value?.capture();
+  onlineCatalog.value = catalog;
+  if (!existing) {
+    if (onlySample) state.books = [];
+    state.books.push({ id, kind: 'online', source: 'biquge001', title: catalog.title, bookPath: catalog.bookPath, chapterPath: chapterPath || catalog.chapters[0].path, position: 0 });
+  } else if (chapterPath) {
+    existing.position = 0;
+    existing.chapterPath = chapterPath;
+  }
+  state.activeId = id;
+  closeMobileSidebar();
+  void nextTick(() => pane.value?.restore());
+}
 const chapters = computed(() => {
   const book = activeBook.value;
   if (!book) return [];
+  if (book.kind === 'online') return onlineCatalog.value?.bookPath === book.bookPath ? onlineCatalog.value.chapters : [];
   if (!sectionCache.has(book.id)) sectionCache.set(book.id, sectionsFor(book.text));
   return sectionCache.get(book.id);
 });
-const chapterIndex = computed(() => activeBook.value ? sectionAt(chapters.value, activeBook.value.position) : 0);
+const chapterIndex = computed(() => activeBook.value?.kind === 'online' ? chapters.value.findIndex(chapter => chapter.path === activeBook.value.chapterPath) : activeBook.value ? sectionAt(chapters.value, activeBook.value.position) : 0);
 
 function announce(message) {
   if (disposed) return;
@@ -91,7 +165,7 @@ function closeConfirm() { confirmation.value = undefined; confirmDialog.value?.c
 function confirmOK() { const action = confirmation.value?.action; closeConfirm(); action?.(); }
 function closeMobileSidebar() { if (window.innerWidth <= 700) sidebarOpen.value = false; }
 
-function updatePosition(position) { if (activeBook.value) activeBook.value.position = position; }
+function updatePosition(position) { if (activeBook.value && !(activeBook.value.kind === 'online' && (onlineLoading.value || onlineError.value))) activeBook.value.position = position; }
 async function selectBook(id) {
   pane.value.capture();
   state.activeId = id;
@@ -109,6 +183,17 @@ function removeBook(book) {
 }
 async function navigate(index) {
   if (!activeBook.value || !chapters.value[index]) return;
+  if (activeBook.value.kind === 'online') {
+    activeBook.value.position = 0;
+    if (activeBook.value.chapterPath !== chapters.value[index].path) {
+      activeBook.value.chapterPath = chapters.value[index].path;
+    }
+    closeMobileSidebar();
+    await nextTick();
+    pane.value?.restore();
+    if (!privateMode.value) pane.value?.focus();
+    return;
+  }
   activeBook.value.position = chapters.value[index].start;
   closeMobileSidebar();
   await nextTick();
@@ -117,6 +202,7 @@ async function navigate(index) {
 }
 async function seek(ratio) {
   if (!activeBook.value) return;
+  if (activeBook.value.kind === 'online') return navigate(Math.min(chapters.value.length - 1, Math.floor(ratio * chapters.value.length)));
   activeBook.value.position = Math.round(ratio * activeBook.value.text.length);
   await nextTick();
   pane.value.restore();
@@ -213,7 +299,7 @@ async function importFiles(files) {
       else await apply();
       return;
     }
-    if (files.some((file) => !/\.txt$/i.test(file.name))) throw new Error('目前支持 TXT 小说和 waitWork JSON 存档。');
+    if (files.some((file) => !/\.txt$/i.test(file.name))) throw new Error('目前支持 TXT 小说和 Wait Work JSON 存档。');
     if (files.length > MAX_BOOKS) throw new Error(`书架最多放 ${MAX_BOOKS} 本书，请减少本次导入数量。`);
     let total = 0;
     const imported = [];
@@ -232,7 +318,7 @@ async function importFiles(files) {
     const hasOnlySample = state.books.length === 1 && state.books[0].id === sample.id;
     const existing = hasOnlySample ? [] : state.books;
     if (existing.length + imported.length > MAX_BOOKS) throw new Error(`书架最多放 ${MAX_BOOKS} 本书，请先移除部分书籍。`);
-    if (total + existing.reduce((sum, book) => sum + book.text.length, 0) > MAX_TOTAL_CHARS) throw new Error('书架正文总量过大，请先移除部分书籍。');
+    if (total + existing.reduce((sum, book) => sum + (book.text?.length || 0), 0) > MAX_TOTAL_CHARS) throw new Error('书架正文总量过大，请先移除部分书籍。');
     // 批量导入失败时保留原有书架，全部读取成功后再提交。
     if (hasOnlySample) sectionCache.delete(sample.id);
     state.books = [...existing, ...imported];
@@ -272,8 +358,8 @@ onBeforeUnmount(() => {
   <div id="reader-app" :inert="!initialized || privateMode" class="app" :class="{ 'sidebar-collapsed': !sidebarOpen }" :hidden="privateMode">
     <QueryToolbar :saved="saveLabel" :error="saveError" :sidebar-open="sidebarOpen" @sidebar="toggleSidebar" @settings="settingsDialog.open()" @toggle="setPrivacy(true)" />
     <div class="workspace">
-      <ReaderSidebar ref="sidebar" v-model:encoding="encoding" :books="state.books" :active-id="state.activeId" :chapters="chapters" :chapter-index="chapterIndex" :busy="importing" @select-book="selectBook" @remove-book="removeBook" @navigate="navigate" @files="importFiles" />
-      <ReadingPane ref="pane" :book="activeBook" :chapters="chapters" :chapter-index="chapterIndex" :hidden="privateMode" :busy="importing" @position="updatePosition" @navigate="navigate" @seek="seek" @import="sidebar.chooseFiles()" @sample="loadSample" />
+      <ReaderSidebar ref="sidebar" v-model:encoding="encoding" :books="state.books" :active-id="state.activeId" :chapters="chapters" :chapter-index="chapterIndex" :busy="importing" @select-book="selectBook" @remove-book="removeBook" @navigate="navigate" @files="importFiles" @read-online="readOnline" @refresh-online="refreshOnline" />
+      <ReadingPane ref="pane" :book="displayBook" :chapters="chapters" :chapter-index="chapterIndex" :hidden="privateMode" :busy="importing" :loading="onlineLoading" :error="onlineError" :warning="onlineWarning" @retry="retryOnline" @position="updatePosition" @navigate="navigate" @seek="seek" @import="sidebar.chooseFiles()" @sample="loadSample" />
     </div>
   </div>
   <section v-if="!initialized" class="storage-overlay" role="status"><h2>{{ loadError ? '无法读取本地文件' : '正在加载查询…' }}</h2><p>{{ loadError || '正在恢复本地文件和编辑位置。' }}</p><button v-if="loadError" class="button" @click="initialize">重新读取</button></section>

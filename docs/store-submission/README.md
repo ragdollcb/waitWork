@@ -9,15 +9,15 @@
 - `candidate-pr.md`：按官方 PR 模板填写的完整正文。
 - `publisher-pr.md`：旧拆分方案说明，不用于本次提交。
 
-前两个文件已放入 `E:\github\dbx-store` 的同名路径，当前分支为 `submit-waitwork-0.5.2`。商店仓库只需要提交这两个 JSON 文件，不需要复制插件源码或安装包。
+前两个文件已放入 `E:\github\dbx-store` 的同名路径，当前分支为 `submit-waitwork-0.5.2`。另外已在 `automation/plugin-sources.json` 登记 `ragdollcb/waitWork`，开启后续 Release 自动发现。商店提交共涉及这三个 JSON 文件，不需要复制插件源码或安装包。
 
 ## 提交步骤
 
-1. 在 `E:\github\dbx-store` 检查并提交两个新增 JSON 文件。
+1. 在 `E:\github\dbx-store` 检查并提交上述三个 JSON 文件。
 2. 自行将 `submit-waitwork-0.5.2` 分支推送到 `ragdollcb/dbx-store`。本次准备工作未执行 push。
-3. 新建 PR：目标 `t8y2/dbx-store:main`，来源 `ragdollcb/dbx-store:submit-waitwork-0.5.2`。
+3. 已创建 PR #39：目标 `t8y2/dbx-store:main`，来源 `ragdollcb/dbx-store:submit-waitwork-0.5.2`。后续提交推送到同一分支即可更新，不需要再建 PR。
 4. 标题使用 `feat(store): submit monstercat.waitwork@0.5.2`，正文复制 `candidate-pr.md`。启用 Allow edits from maintainers，方便官方签名流程回写。
-5. 等待维护者审核、签名和合并。原 PR #35 已关闭且未合并，本次新建完整候选 PR。
+5. 等待维护者审核、签名和合并。原 PR #35 已关闭且未合并，完整申请位于 https://github.com/t8y2/dbx-store/pull/39 。
 
 比较页面：https://github.com/t8y2/dbx-store/compare/main...ragdollcb:dbx-store:submit-waitwork-0.5.2?expand=1
 
@@ -36,8 +36,8 @@
 
 ## 维护者需要处理的签名问题
 
-检查时官方 `sign-plugin-pr.yml` 仍会用 base 分支的 `publishers/` 覆盖 PR 分支，新发布者 `monstercat` 可能因此丢失。PR 正文已提醒维护者在签名前保留或登记发布者，或修复工作流。这不改变官方规定的单 PR 提交流程。
+检查时官方 `sign-plugin-pr.yml` 仍会用 base 分支的 `publishers/` 和 `automation/` 覆盖 PR 分支，新发布者和自动更新登记可能因此丢失。PR 正文已提醒维护者在签名前保留或登记这两项，或修复工作流。这不改变官方规定的单 PR 提交流程。
 
-`plugins/`、`catalog/` 和自动同步登记文件均未修改。后续如需自动跟踪新 Release，可另行申请在 `automation/plugin-sources.json` 登记仓库。
+`plugins/` 和 `catalog/` 由维护者签名后自动生成，本次未修改。`automation/plugin-sources.json` 已开启自动更新登记，生效后仍需要维护者审核、签名和合并每次更新。
 
 参考：[官方提交说明](https://github.com/t8y2/dbx-store/blob/main/CONTRIBUTING.md)、[签名工作流](https://github.com/t8y2/dbx-store/blob/main/.github/workflows/sign-plugin-pr.yml)。

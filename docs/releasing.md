@@ -1,4 +1,4 @@
-# waitWork 发布打包
+# Wait Work 发布打包
 
 插件 ID：`monstercat.waitwork`，发布者：`monstercat`。源码仓库：<https://github.com/ragdollcb/waitWork>。
 
@@ -20,7 +20,7 @@
 ## 第一次运行
 
 1. 将项目源码同步到 GitHub 默认分支，包含 `.github/` 和 `.agents/skills/dbx-plugin/`。后者的检查脚本会用于 CI，不能漏掉。
-2. 打开仓库 **Actions → Build waitWork packages → Run workflow**，选择需要构建的分支。
+2. 打开仓库 **Actions → Build Wait Work packages → Run workflow**，选择需要构建的分支。
 3. 等待六个平台构建以及汇总任务通过，在运行页面的 **Artifacts** 下载 `waitwork-all-platforms`。
 4. 解压后选择对应系统与架构的 `.dbxp` 安装。
 
@@ -33,7 +33,7 @@
 1. 同步修改 `manifest.json`、`package.json`、`package-lock.json` 中的版本，以及 `backend/main.go` 的 SDK Metadata 版本。
 2. 更新 `docs/release-notes.md`，记录本次变化。
 3. 执行 `npm run release:check` 检查版本一致性。提交并同步源码后，创建并推送匹配的版本标签，例如当前版本为 `v0.5.2`。标签只标记某次提交，不会自动修改上述文件里的版本号。
-4. 标签触发 Actions；全部六个平台成功并通过汇总检查后，自动创建 **waitWork v0.5.2** Release 草稿。
+4. 标签触发 Actions；全部六个平台成功并通过汇总检查后，自动创建 **Wait Work v0.5.2** Release 草稿。
 5. 到仓库 Releases 检查草稿和附件，然后点击 **Publish release**。
 
 标签必须严格匹配 `v` 加插件版本号；任何一个平台失败，都不会进入 Release 草稿步骤。使用草稿可先上传全部资产，兼容 GitHub 的不可变 Release 设置。

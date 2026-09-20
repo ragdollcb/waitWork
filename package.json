@@ -4,11 +4,11 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "waitWork：等一会工作，休息一下。DBX 本地小说阅读插件。",
+  "description": "Wait Work：等一会工作，休息一下。DBX 本地与在线小说阅读插件。",
   "scripts": {
     "build": "vite build",
     "dev:ui": "vite",
-    "dev": "npm run build && dbx-plugin dev --path . --port 5190",
+    "dev": "npm run build && node scripts/dev.mjs",
     "preview": "npm run build && npm run build:backend && node scripts/preview.mjs",
     "package": "npm run build && dbx-plugin package .",
     "test": "node --test tests/*.test.mjs",

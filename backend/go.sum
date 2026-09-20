@@ -1,2 +1,6 @@
 github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0-20260913023917-b5072f1a3e15 h1:hSDRGPUwn4agZF3U6HTKpCIKJGNUF1Dkr+7vZ5UtrMI=
 github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0-20260913023917-b5072f1a3e15/go.mod h1:dH3MqbBTnHuo28/NuVJTl2N34IeQFdp+0R7uqftw8xw=
+golang.org/x/net v0.59.0 h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=
+golang.org/x/net v0.59.0/go.mod h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=
+golang.org/x/text v0.42.0 h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
+golang.org/x/text v0.42.0/go.mod h1:ojzP1Z+2QtioaF8DTtO8K5q7JWVVYwZKenzujK0Zd0E=

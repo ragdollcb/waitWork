@@ -1,15 +1,15 @@
-# waitWork
+# Wait Work
 
-**等一会工作，休息一下。** waitWork 是 DBX 的休息工具插件，当前提供本地 TXT 小说阅读。从“waitWork”工作台入口打开，内部显示为“新建查询”，正文以 SQL 注释样式呈现。切换页面自动收起，按 `Esc` 展开或收起。
+**等一会工作，休息一下。** Wait Work 是 DBX 的休息工具插件，支持本地 TXT 和笔趣阁在线小说阅读。从“Wait Work”工作台入口打开，内部显示为“新建查询”，正文以 SQL 注释样式呈现。切换页面自动收起，按 `Esc` 展开或收起。
 
-使用 **Vue 3 + Vite + JavaScript** 构建界面，**Go 后端**自动保存本地书架。不联网、不上传小说。GitHub Actions 分别为 Windows、macOS、Linux 的 x64 / ARM64 架构构建安装包。
+使用 **Vue 3 + Vite + JavaScript** 构建界面，**Go 后端**自动保存本地书架。本地 TXT 不联网、不上传；在线阅读由后端向 `www.biquge001.com` 发送搜索词及目录／章节请求，正文与进度保存在本机。GitHub Actions 分别为 Windows、macOS、Linux 的 x64 / ARM64 架构构建安装包。
 
 ## 安装
 
 1. 打开 DBX → 插件中心 → 设置 → 第三方与开发者选项。
 2. 开启“允许安装未签名开发包”。
 3. 从 [GitHub Releases](https://github.com/ragdollcb/waitWork/releases) 下载对应平台的包。文件名格式为 `monstercat.waitwork-<版本>-<平台>.dbxp`，例如 Windows x64 选择以 `windows-x64.dbxp` 结尾的包。本地构建产物位于 `dist/`。
-4. 在已安装的 waitWork 插件中打开“waitWork”工作台。工作台入口的说明包含导入小说、阅读设置、隐藏／恢复和自动保存用法。更新后关闭旧标签再重新打开。
+4. 在已安装的 Wait Work 插件中打开“Wait Work”工作台。工作台入口的说明包含导入小说、阅读设置、隐藏／恢复和自动保存用法。更新后关闭旧标签再重新打开。
 
 插件 ID 为 `monstercat.waitwork`，发布者为 `monstercat`，源码仓库为 [ragdollcb/waitWork](https://github.com/ragdollcb/waitWork)。GitHub 构建产物是未签名候选，官方商店通过 `t8y2/dbx-store` 审核签名。
 
@@ -41,9 +41,19 @@ Windows 数据位置为 `%APPDATA%\waitWork\`：`library.json` 保存书架索�
 
 移除书籍不会删除原始 TXT。内置《雨停之前》是本项目的原创试读文本。
 
+## 在线阅读
+
+打开侧栏 → **在线搜索**，输入书名或作者，选择结果查看简介和目录；点击“开始／继续阅读”或某一章即可加入书架。首次打开在线小说会替换内置示例。支持搜索结果翻页、目录查找、上一章／下一章和按章节跳转进度。
+
+目前只适配 `www.biquge001.com`。搜索、目录与正文请求由 Go 后端完成，支持网站 GBK 编码；不会执行网页脚本，也不加载远程广告和封面。网站限流、网络中断或页面结构变化时会提示重试。
+
+目录和已打开的章节缓存在本机 `waitWork/online/` 下，重新打开可恢复章节和章内位置。断网时可以阅读已缓存的章节；未缓存的章节需要联网。目录默认使用缓存，点击“大纲”里的“刷新目录”检查更新；刷新失败保留旧目录。缓存失败时正文仍可阅读，但会明确提示尚未缓存。
+
+在线与本地小说合计最多 20 本。移除在线小说后清理其目录与正文缓存；预览过但未加入书架的目录可能保留在缓存目录中。没有整本下载、自定义书源或登录功能。旧 TXT 书架和旧 JSON 存档仍可读取；导入旧存档会按确认内容替换整个书架。
+
 ## 开发
 
-需要 Node.js 22.12+ 和 Go 1.22+；当前开发环境为 Node.js 24 和 Go 1.26。
+需要 Node.js 22.12+ 和 Go 1.26+；当前开发环境为 Node.js 24 和 Go 1.26。HTML 与 GBK 编码解析使用 Go 官方扩展库 `golang.org/x/net` 和 `golang.org/x/text`。
 
 ```powershell
 npm ci
@@ -61,11 +71,11 @@ npm run preview
 npm run package
 ```
 
-启动官方宿主后，点击左侧工作台中的“waitWork”。修改源码后执行 `npm run build`，再重载页面。重载后自动恢复上次保存的书架和进度。开发时可通过 `WAITWORK_DATA_DIR` 指定独立数据目录，避免影响正式书架。浏览器预览按会话保存到 `.dbx-dev/preview/`；浏览器测试使用隔离目录。Windows 下 CLI 0.1.9 的内部构建命令有长路径兼容问题，因此本项目在 `npm run dev` 中先完成构建，再启动宿主，不配置 `[dev].ui_build`。
+启动官方宿主后，点击左侧工作台中的“Wait Work”。修改源码后执行 `npm run build`，再重载页面。重载后自动恢复上次保存的书架和进度。开发时可通过 `WAITWORK_DATA_DIR` 指定独立数据目录，避免影响正式书架。浏览器预览按会话保存到 `.dbx-dev/preview/`；浏览器测试使用隔离目录。Windows 下 CLI 0.1.9 的内部构建命令有长路径兼容问题，因此本项目在 `npm run dev` 中先完成构建，再启动宿主，不配置 `[dev].ui_build`。启动脚本同时跳过该版本固定 Go 1.22 的临时工作区，使用项目 `go.mod` 锁定的 SDK；调试宿主仍使用官方 runtime。
 
 ## GitHub Actions 打包
 
-- **手动构建**：Actions → Build waitWork packages → Run workflow，完成后下载 `waitwork-all-platforms`。
+- **手动构建**：Actions → Build Wait Work packages → Run workflow，完成后下载 `waitwork-all-platforms`。
 - **版本发布**：先同步并提交前后端版本，再推送与源码版本一致的标签（当前 `v0.5.2`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。创建标签不会自动修改项目版本号。
 - 无需配置自定义 Secret，工作流自动生成六份安装包、各包元数据和 `release-candidates.json`。
 
@@ -111,7 +121,7 @@ npm run test:browser
 
 接口以 DBX 源码 `69d3f028437f1ee1ab90a66a67ee0424966e88ca`（项目版本 0.6.14）为核对基准，后端使用官方 Go SDK，通过 `window.dbxPlugin.invoke` 通信。严格沙箱测试与官方 CLI 宿主均连接真实 Go 后端；尚未在实际 DBX 桌面客户端安装验收。自动收起按当前 DBX 的 `v-show` 工作台行为实现并在严格 iframe 沙箱中验证；宿主若只用不透明浮层覆盖插件且不转移焦点，插件无法识别该遮挡。
 
-目前未接入 EPUB 或在线书源。DBX 的不透明 iframe origin 无法可靠使用 `localStorage` / IndexedDB，因此持久化由 Go 后端完成。
+目前未接入 EPUB。DBX 的不透明 iframe origin 无法可靠使用 `localStorage` / IndexedDB，因此持久化和在线书源访问由 Go 后端完成。
 
 ## 后续内嵌网站
 

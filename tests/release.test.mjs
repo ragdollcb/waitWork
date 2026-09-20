@@ -57,7 +57,7 @@ function fixture(directory, target, options = {}) {
   packed.entrypoints.backend.executable = binary;
   const entries = {
     'manifest.json': json(packed),
-    'ui/index.html': Buffer.from('<html>waitWork</html>'),
+    'ui/index.html': Buffer.from('<html>Wait Work</html>'),
     'assets/plugin.svg': Buffer.from('<svg/>'),
     'assets/query.svg': Buffer.from('<svg/>'),
     [binary]: Buffer.from('fixture backend'),

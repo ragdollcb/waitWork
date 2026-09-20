@@ -1,5 +1,5 @@
 {
-  "name": "waitWork",
+  "name": "Wait Work",
   "description": "等一会工作，休息一下。支持本地 TXT 小说阅读、章节目录、阅读设置与自动保存，切换页面自动收起正文。",
   "icon": "assets/plugin.svg",
   "tags": ["productivity", "reader"],
@@ -9,7 +9,7 @@
   "releaseNotes": "统一前后端发布版本，修复标签与包内版本不一致导致的构建失败；补充 Apache-2.0 许可证声明和商店介绍资料。保留本地 TXT 阅读、自动保存和查询样式界面，提供 Windows、macOS、Linux 的 x64 和 ARM64 安装包。",
   "localizations": {
     "zh-CN": {
-      "name": "waitWork",
+      "name": "Wait Work",
       "description": "等一会工作，休息一下。本地 TXT 小说阅读、章节目录与自动保存。"
     }
   }

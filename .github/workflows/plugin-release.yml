@@ -1,4 +1,4 @@
-name: Build waitWork packages
+name: Build Wait Work packages
 
 on:
   workflow_dispatch:
@@ -138,5 +138,5 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" \
             dist/release/*.dbxp dist/release/*.artifact.json dist/release/release-candidates.json \
-            --verify-tag --draft --title "waitWork $RELEASE_TAG" \
+            --verify-tag --draft --title "Wait Work $RELEASE_TAG" \
             --notes-file dist/release/RELEASE_NOTES.md

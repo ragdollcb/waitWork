@@ -95,7 +95,7 @@ export function validSettings(settings = {}) {
 export function parseArchive(json) {
   let data;
   try { data = JSON.parse(json); } catch { throw new Error('存档不是有效的 JSON 文件。'); }
-  if (!data || data.format !== 'xidu' || data.version !== 1 || !Array.isArray(data.books) || data.books.length > MAX_BOOKS) throw new Error('不是受支持的 waitWork 存档，请导入 .waitwork.json 文件。');
+  if (!data || data.format !== 'xidu' || data.version !== 1 || !Array.isArray(data.books) || data.books.length > MAX_BOOKS) throw new Error('不是受支持的 Wait Work 存档，请导入 .waitwork.json 文件。');
   let total = 0;
   const ids = new Set();
   const books = data.books.map((book) => {

@@ -33,7 +33,7 @@ test('默认显示新建查询，展开后的正文呈 SQL 注释，Esc 可往�
   await expect(reader.locator('#privacy-screen')).toBeVisible();
   await expect(reader.locator('#reader-app')).toBeHidden();
   await expect.poll(() => page.frames()[1].evaluate(() => document.title)).toBe('新建查询');
-  await expect(reader.locator('#privacy-screen')).not.toContainText('waitWork');
+  await expect(reader.locator('#privacy-screen')).not.toContainText('Wait Work');
   await expect(reader.locator('#privacy-screen')).not.toContainText('雨停之前');
   await reader.locator('#query-draft').fill('SELECT 1;');
   await reader.locator('#restore-reading').click();

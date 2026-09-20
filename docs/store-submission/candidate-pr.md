@@ -7,11 +7,13 @@
 
 This first-submission PR includes both `publishers/monstercat.json` and `candidates/monstercat.waitwork.json`, following the store's single-PR submission process.
 
+It also registers `ragdollcb/waitWork` in `automation/plugin-sources.json` with `metadataPath: ".dbx-store.json"` and `autoUpdate: true`, so future published releases can be discovered for candidate review. Updates still require maintainer signing and merge.
+
 Supersedes the closed, unmerged publisher-only PR #35.
 
 ### Signing workflow note for maintainers
 
-The current `.github/workflows/sign-plugin-pr.yml` removes `publishers/` and restores it from the base branch before candidate validation. Since `monstercat` is a new publisher, please preserve or register this publisher before that step, or adjust the workflow to retain reviewed new publisher records. Otherwise the candidate can fail with `publisher 'monstercat' is not registered`. This is separate from the expected pre-signing CI gate; it does not change the candidate package bytes.
+The current `.github/workflows/sign-plugin-pr.yml` restores `publishers/` and `automation/` from the base branch before candidate validation. Please preserve or register the new `monstercat` publisher and the `ragdollcb/waitWork` auto-update entry before that step, or adjust the workflow to retain these reviewed additions. Otherwise the candidate can fail with `publisher 'monstercat' is not registered`, and the auto-update entry may be lost. This is separate from the expected pre-signing CI gate; it does not change the candidate package bytes.
 
 ## Source repository and tag
 

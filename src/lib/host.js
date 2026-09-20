@@ -1,10 +1,10 @@
 import { parseArchive } from '../reader.mjs';
 
-async function invoke(method, params = {}) {
+export async function invoke(method, params = {}) {
   const bridge = window.dbxPlugin;
   if (!bridge) throw new Error('请在 DBX 或 npm run preview 开发预览中打开，自动保存需要本地后端。');
   await bridge.ready;
-  return bridge.invoke(method, params);
+  return bridge.invoke(method, params, { timeoutMs: 15000 });
 }
 
 // 正文只在导入时上传；滚动和设置变化只更新小体积书架索引。
@@ -19,17 +19,23 @@ export function createStorage() {
       if (!saved.data) return null;
       const books = [];
       for (const book of saved.data.books) {
+        if (book.kind === 'online') { books.push(validateOnlineBook(book)); continue; }
         let text = '';
         for (const hash of book.chunks) text += (await invoke('reader/chunk-get', { hash })).text;
         texts.set(book.id, { text, chunks: book.chunks });
         books.push({ ...book, text });
       }
-      return parseArchive(JSON.stringify({ ...saved.data, books, format: 'xidu', version: 1 }));
+      const local = parseArchive(JSON.stringify({ ...saved.data, books: books.filter(book => book.kind !== 'online'), format: 'xidu', version: 1 }));
+      const locals = new Map(local.books.map(book => [book.id, book]));
+      const ids = new Set(books.map(book => book.id));
+      if (books.length > 20 || ids.size !== books.length || (books.length && !ids.has(saved.data.activeId))) throw new Error('书架信息无效，请保留本地数据并检查文件。');
+      return { books: books.map(book => book.kind === 'online' ? book : locals.get(book.id)), activeId: saved.data.activeId, settings: local.settings };
     },
     async save(state) {
       const books = [];
       const nextTexts = new Map();
       for (const book of state.books) {
+        if (book.kind === 'online') { books.push(validateOnlineBook(book)); continue; }
         let cached = texts.get(book.id);
         if (cached?.text !== book.text) {
           const chunks = [];
@@ -50,4 +56,15 @@ export function createStorage() {
       texts = nextTexts;
     },
   };
+}
+
+export function onlineID(path) { return `biquge001-${path.replace(/^\/+|\/+$/g, '').replaceAll('/', '-')}`; }
+
+export function validateOnlineBook(book) {
+  if (book.source !== 'biquge001' || !/^\/Book\/\d{1,8}\/\d{1,12}\/$/.test(book.bookPath)
+    || book.id !== onlineID(book.bookPath) || typeof book.title !== 'string' || !book.title.trim() || book.title.length > 200
+    || !/^\/Book\/\d{1,8}\/\d{1,12}\/[1-9]\d{0,15}\.html$/.test(book.chapterPath) || !book.chapterPath.startsWith(book.bookPath)
+    || !Number.isInteger(book.position) || book.position < 0 || book.position > 2 * 1024 * 1024) throw new Error('在线书籍信息无效，请保留本地数据并检查文件。');
+  const { id, title, source, bookPath, chapterPath, position } = book;
+  return { id, title, kind: 'online', source, bookPath, chapterPath, position };
 }

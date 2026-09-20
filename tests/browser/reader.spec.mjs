@@ -115,7 +115,7 @@ test('实际官方 CLI 宿主可自动保存并在重开工作台后恢复', asy
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('http://127.0.0.1:5190');
-  await page.getByRole('button', { name: 'waitWork', exact: true }).click();
+  await page.getByRole('button', { name: 'Wait Work', exact: true }).click();
   const reader = page.frameLocator('iframe').first();
   await reveal(reader);
   await expect(reader.locator('#chapter-title')).toContainText('第一章 旧车站', { timeout: 20000 });
@@ -123,7 +123,7 @@ test('实际官方 CLI 宿主可自动保存并在重开工作台后恢复', asy
   await expect(reader.locator('#current-book')).toHaveText('长篇测试');
   await expect(reader.locator('#save-status')).toHaveText('已自动保存');
   await page.reload();
-  await page.getByRole('button', { name: 'waitWork', exact: true }).click();
+  await page.getByRole('button', { name: 'Wait Work', exact: true }).click();
   await reveal(reader);
   await expect(reader.locator('#current-book')).toHaveText('长篇测试');
   await expect(reader.locator('.storage-overlay')).toHaveCount(0);

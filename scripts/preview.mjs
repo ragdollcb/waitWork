@@ -61,10 +61,10 @@ createServer(async (request, response) => {
     if (request.url === '/sandbox') {
       // 与 DBX 相同的不透明 origin 和 CSP，父页将请求转交真实 Go 后端。
       const srcdoc = html.replace('<head>', `<head>${csp}${frameBridge}`).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-      html = `<!doctype html><html><head><title>waitWork沙箱验证</title><style>html,body{margin:0;height:100%;overflow:hidden}iframe{border:0;width:100%;height:100%}</style>${directBridge}</head><body><iframe title="阅读器" sandbox="allow-scripts" srcdoc="${srcdoc}"></iframe><script>window.addEventListener('message',async e=>{if(e.source!==document.querySelector('iframe').contentWindow||e.data?.type!=='rpc')return;let result,error;try{result=await window.dbxPlugin.invoke(e.data.method,e.data.params);}catch(err){error={message:err.message,code:err.code};}e.source.postMessage({type:'rpc-result',id:e.data.id,result,error},'*');});</script></body></html>`;
+      html = `<!doctype html><html><head><title>Wait Work沙箱验证</title><style>html,body{margin:0;height:100%;overflow:hidden}iframe{border:0;width:100%;height:100%}</style>${directBridge}</head><body><iframe title="阅读器" sandbox="allow-scripts" srcdoc="${srcdoc}"></iframe><script>window.addEventListener('message',async e=>{if(e.source!==document.querySelector('iframe').contentWindow||e.data?.type!=='rpc')return;let result,error;try{result=await window.dbxPlugin.invoke(e.data.method,e.data.params);}catch(err){error={message:err.message,code:err.code};}e.source.postMessage({type:'rpc-result',id:e.data.id,result,error},'*');});</script></body></html>`;
     } else html = html.replace('<head>', `<head>${directBridge}`);
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(html);
   } catch (error) { response.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: { message: error.message } })); }
-}).listen(port, '127.0.0.1', () => console.log(`waitWork预览：http://127.0.0.1:${port}`));
+}).listen(port, '127.0.0.1', () => console.log(`Wait Work预览：http://127.0.0.1:${port}`));
 process.on('exit', () => { for (const { child } of sessions.values()) child.kill(); });
 for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => process.exit());

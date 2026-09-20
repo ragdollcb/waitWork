@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -23,10 +25,14 @@ var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var idPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
 
 type book struct {
-	ID       string   `json:"id"`
-	Title    string   `json:"title"`
-	Position int      `json:"position"`
-	Chunks   []string `json:"chunks"`
+	Kind        string   `json:"kind,omitempty"`
+	Source      string   `json:"source,omitempty"`
+	BookPath    string   `json:"bookPath,omitempty"`
+	ChapterPath string   `json:"chapterPath,omitempty"`
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Position    int      `json:"position"`
+	Chunks      []string `json:"chunks"`
 }
 type library struct {
 	Books    []book          `json:"books"`
@@ -38,9 +44,11 @@ type snapshot struct {
 	Data     *library `json:"data"`
 }
 type store struct {
-	mu      sync.Mutex
-	dir     string
-	lengths map[string]int
+	mu          sync.Mutex
+	dir         string
+	lengths     map[string]int
+	client      *http.Client
+	onlineEpoch map[string]uint64
 }
 
 // 先同步临时文件，再替换正式文件；写入失败时保留上一份完整书架。
@@ -111,10 +119,19 @@ func (s *store) validate(value *library) error {
 	ids := map[string]bool{}
 	total := 0
 	for _, b := range value.Books {
-		if !idPattern.MatchString(b.ID) || ids[b.ID] || b.Title == "" || len(utf16.Encode([]rune(b.Title))) > 200 || len(b.Chunks) == 0 || len(b.Chunks) > 128 {
+		if !idPattern.MatchString(b.ID) || ids[b.ID] || b.Title == "" || len(utf16.Encode([]rune(b.Title))) > 200 {
 			return errors.New("书籍信息无效或超出限制")
 		}
 		ids[b.ID] = true
+		if b.Kind == "online" {
+			if b.Source != "biquge001" || !bookPathPattern.MatchString(b.BookPath) || b.ID != onlineID(b.BookPath) || !validChapter(b.BookPath, b.ChapterPath) || b.Position < 0 || b.Position > onlinePageLimit || len(b.Chunks) != 0 {
+				return errors.New("在线书籍或阅读位置无效")
+			}
+			continue
+		}
+		if (b.Kind != "" && b.Kind != "local") || len(b.Chunks) == 0 || len(b.Chunks) > 128 {
+			return errors.New("书籍信息无效或超出限制")
+		}
 		length := 0
 		for _, hash := range b.Chunks {
 			// 已校验的正文长度可复用，滚动时不重复读取和散列整本小说。
@@ -140,6 +157,10 @@ func (s *store) validate(value *library) error {
 }
 
 func (s *store) Handle(_ dbx.RequestContext, method string, raw json.RawMessage, _ *dbx.Emitter) (any, *dbx.PluginError) {
+	// 网络请求在书架锁外执行，避免网站缓慢时阻塞本地自动保存。
+	if strings.HasPrefix(method, "source/") {
+		return s.handleSource(method, raw)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fail := func(err error) (any, *dbx.PluginError) {
@@ -206,6 +227,20 @@ func (s *store) Handle(_ dbx.RequestContext, method string, raw json.RawMessage,
 		}
 		// 索引提交成功后才清理已移除书籍的正文，失败不能破坏旧书架。
 		if current.Data != nil {
+			kept := map[string]bool{}
+			for _, b := range p.Data.Books {
+				kept[b.ID] = true
+			}
+			for _, b := range current.Data.Books {
+				if b.Kind == "online" && !kept[b.ID] && bookPathPattern.MatchString(b.BookPath) {
+					if s.onlineEpoch == nil {
+						s.onlineEpoch = map[string]uint64{}
+					}
+					s.onlineEpoch[b.BookPath]++
+					// 路径由固定根目录和受校验的书籍标识组成。
+					_ = os.RemoveAll(s.onlineDir(b.BookPath))
+				}
+			}
 			used := map[string]bool{}
 			for _, b := range p.Data.Books {
 				for _, hash := range b.Chunks {
