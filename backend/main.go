@@ -312,7 +312,7 @@ func main() {
 		}
 		dir = filepath.Join(base, "waitWork")
 	}
-	server := dbx.NewServer(dbx.Metadata{ID: "monstercat.waitwork", Version: "0.5.2", Capabilities: []string{}}, &store{dir: dir})
+	server := dbx.NewServer(dbx.Metadata{ID: "monstercat.waitwork", Version: "0.6.2", Capabilities: []string{}}, &store{dir: dir})
 	if err := server.Serve(); err != nil {
 		log.Fatal(err)
 	}

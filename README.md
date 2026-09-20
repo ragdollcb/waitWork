@@ -78,7 +78,7 @@ npm run package
 ## GitHub Actions 打包
 
 - **手动构建**：Actions → Build Wait Work packages → Run workflow，完成后下载 `waitwork-all-platforms`。
-- **版本发布**：先同步并提交前后端版本，再推送与源码版本一致的标签（当前 `v0.5.2`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。创建标签不会自动修改项目版本号。
+- **版本发布**：先同步并提交前后端版本，再推送与源码版本一致的标签（当前 `v0.6.2`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。创建标签不会自动修改项目版本号。
 - 无需配置自定义 Secret，工作流自动生成六份安装包、各包元数据和 `release-candidates.json`。
 
 完整平台列表、发布步骤和旧版迁移说明见 [发布打包说明](docs/releasing.md)。
