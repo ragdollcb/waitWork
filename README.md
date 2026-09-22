@@ -1,115 +1,117 @@
 # Wait Work
 
-**等一会工作，休息一下。** Wait Work 是 DBX 的休息工具插件，支持本地 TXT、EPUB、MOBI 和自定义书源在线阅读。从“Wait Work”工作台入口打开，内部显示为“新建查询”，正文以 SQL 注释样式呈现。切换页面自动收起，按 `Esc` 展开或收起。
+English | [简体中文](README.zh-CN.md)
 
-使用 **Vue 3 + Vite + JavaScript** 构建界面，**Go 后端**自动保存本地书架。本地书籍不联网、不上传；在线阅读由后端向用户在设置中保存的网站发送搜索词及目录／章节请求，正文与进度保存在本机。GitHub Actions 分别为 Windows、macOS、Linux 的 x64 / ARM64 架构构建安装包。
+**Let work wait. Take a break.** Wait Work is a reading and break-time plugin for DBX, supporting local TXT, EPUB, and MOBI books as well as online reading from a custom book source. Open it from the “Wait Work” workbench entry; the tab appears as “New Query” (新建查询), with book text displayed as SQL comments. Reading automatically collapses when you switch pages. Press `Esc` to expand or collapse it.
 
-## 安装
+The interface is built with **Vue 3 + Vite + JavaScript**, and a **Go backend** automatically saves your local bookshelf. Local books require no network access and are never uploaded. For online reading, the backend sends search terms and table-of-contents/chapter requests to the website you save in settings; book text and reading progress are stored locally. GitHub Actions builds packages for Windows, macOS, and Linux on both x64 and ARM64.
 
-1. 打开 DBX → 插件中心 → 设置 → 第三方与开发者选项。
-2. 开启“允许安装未签名开发包”。
-3. 从 [GitHub Releases](https://github.com/ragdollcb/waitWork/releases) 下载对应平台的包。文件名格式为 `monstercat.waitwork-<版本>-<平台>.dbxp`，例如 Windows x64 选择以 `windows-x64.dbxp` 结尾的包。本地构建产物位于 `dist/`。
-4. 在已安装的 Wait Work 插件中打开“Wait Work”工作台。工作台入口的说明包含导入小说、阅读设置、隐藏／恢复和自动保存用法。更新后关闭旧标签再重新打开。
+## Installation
 
-插件 ID 为 `monstercat.waitwork`，发布者为 `monstercat`，源码仓库为 [ragdollcb/waitWork](https://github.com/ragdollcb/waitWork)。GitHub 构建产物是未签名候选，官方商店通过 `t8y2/dbx-store` 审核签名。
+1. Open DBX → Plugin Center → Settings → Third-party and Developer Options.
+2. Enable “Allow unsigned development packages” (允许安装未签名开发包).
+3. Download the package for your platform from [GitHub Releases](https://github.com/ragdollcb/waitWork/releases). Filenames follow `monstercat.waitwork-<version>-<platform>.dbxp`; for example, choose a package ending in `windows-x64.dbxp` for Windows x64. Locally built packages are placed in `dist/`.
+4. Open the “Wait Work” workbench in the installed Wait Work plugin. The workbench entry description explains how to import books, adjust reading settings, hide/restore reading, and use autosave. After updating, close the old tab and reopen it.
 
-旧开发版 `local.xidu.reader` 会保留为另一个插件。关闭旧版工作台后使用新版；系统配置目录下的 `waitWork` 数据位置不变，已有书架和进度可以继续读取。
+The plugin ID is `monstercat.waitwork`, the publisher is `monstercat`, and the source repository is [ragdollcb/waitWork](https://github.com/ragdollcb/waitWork). GitHub builds are unsigned release candidates; official store review and signing are handled through `t8y2/dbx-store`.
 
-项目原创代码与文档采用 [Apache-2.0](LICENSE)，版权署名为 monstercat，适用范围见 [NOTICE](NOTICE)。第三方依赖和开发工具保留各自许可证。商店首次提交材料见 [上架说明](docs/store-submission/README.md)。
+The older development version, `local.xidu.reader`, remains installed as a separate plugin. Close its workbench before using the new version. The `waitWork` data directory under the system configuration directory is unchanged, so existing bookshelves and reading progress remain accessible.
 
-## 阅读
+Original project code and documentation are licensed under [Apache-2.0](LICENSE), with copyright attributed to monstercat. See [NOTICE](NOTICE) for the scope. Third-party dependencies and development tools retain their respective licenses. Initial store submission materials are available in the [store submission guide](docs/store-submission/README.md) (Chinese).
 
-- 默认显示月度经营分析查询与对应结果。点击右上角 `SQL` 或在插件内按 `Esc` 展开正文；不会在重新获得焦点时自动展开。
-- 点击左上角侧栏图标，再点击“打开文件”，可混合导入多本 TXT、EPUB、MOBI，或单独导入旧版 JSON 存档。首次导入会替换内置示例小说。
-- TXT 自动识别 UTF-8、GB18030/GBK、带 BOM 的 UTF-16。乱码时先切换左侧 TXT 编码，再重新导入。自动清理解码后文本任意位置的空字符（NUL），无需预先转换原文件；只有空字符而没有正文时仍提示空文件。同时清理文件末尾旧阅读器的 `PIXTEL_MMI_EBOOK_2005` 位置标记，含此标记的 TXT 也可直接导入。
-- EPUB 2/3、MOBI（含 PalmDOC、HUFF/CDIC 压缩和 KF8／组合文件）提取书名、纯文本正文和原生目录，沿用现有阅读界面；嵌套目录按阅读顺序展开，同一文件中的章节锚点可以分别跳转。目录、格式和阅读进度随书架自动保存。不会显示图片、原书样式或音视频，不执行书内脚本、不加载外部资源。加密正文暂不支持；仅字体混淆不影响正文导入。
-- 自动提取常见中文章节标题、`Chapter 1` 等英文标题。TXT 或缺少有效原生目录的电子书使用标题识别；无章节或超长章节会按段拆分，正文不会一次性全部渲染。
-- 点击侧栏“大纲”查找章节；底部进度条可跳转全书位置。
-- 齿轮按钮调整字体、字号、行距、正文宽度和页面颜色；默认跟随宿主明暗主题。
-- 在正文区域使用 `←` / `→` 切换章节，空格向下翻页，`Shift + 空格`向上翻页。
-- 切换其他窗口、浏览器标签或 DBX 内部 SQL / 表格 / 页面时，插件失焦或被隐藏即自动收起；此行为始终开启。快捷键需要焦点位于插件内。
-- 展开和收起均使用查询工具栏、文件标签、编辑器与结果面板。展开时小说显示为带行号的注释，收起后预置 838 行 SQLite 经营分析 SQL，包含 CTE、聚合、退款计算、环比和窗口排名，并显示 24 行、17 列的对应结果。支持语法高亮、行号、横向滚动和结果／消息切换。
-- 伪装页使用本地样例数据和预先计算的查询结果，不连接用户数据库。编辑 SQL 后会标记“上次结果”，不会执行编辑后的语句；点击文件栏的恢复按钮可还原预置查询。SQL 草稿仅在当前会话保留，小说仍照常自动保存。
-- 单本 TXT 上限 8 MiB；EPUB、MOBI 原文件上限 32 MiB，解压内容累计上限 64 MiB，转换后的单本正文上限 8 Mi UTF-16 代码单元。书架最多 20 本，总正文上限 24 Mi UTF-16 代码单元；存档上限 64 MiB。章节目录最多 10000 项，并受书架索引 1 MiB 上限约束；导入前会预留正文索引和后续设置所需空间。
-- 混合多选时，全部文件解析成功后才加入书架；某一本损坏、加密或超过限制会取消本批导入，保留原有书架。
+## Reading
 
-**书架、小说正文、阅读位置和设置会自动保存。** 导入、切书、翻章、滚动和修改设置后会更新本地数据，顶部显示“正在自动保存…”或“已自动保存”。保存失败会持续提示并自动重试；读取失败时会阻止编辑，避免覆盖旧数据。多个工作台使用同一后端时，过期窗口不能覆盖新书架。
+- The default view shows a monthly business analysis query and its results. Click `SQL` in the upper-right corner or press `Esc` while focused inside the plugin to expand the book text. Reading does not automatically expand when focus returns.
+- Click the sidebar icon in the upper-left corner, then “Open File” (打开文件) to import multiple TXT, EPUB, and MOBI books together, or import a legacy JSON archive on its own. The first import replaces the bundled sample novel.
+- TXT import automatically detects UTF-8, GB18030/GBK, and UTF-16 with a BOM. If text appears garbled, change the TXT encoding in the sidebar and import again. NUL characters are automatically removed wherever they appear in the decoded text, so there is no need to convert the original file first. A file containing only NUL characters is still reported as empty. The legacy reader position marker `PIXTEL_MMI_EBOOK_2005` is also removed from the end of a file, allowing TXT files containing this marker to be imported directly.
+- EPUB 2/3 and MOBI (including PalmDOC, HUFF/CDIC compression, and KF8/combined files) imports extract the title, plain text, and native table of contents for use in the same reading interface. Nested tables of contents are flattened in reading order, and chapter anchors within a single file can be navigated to individually. The table of contents, format, and reading progress are saved automatically with the bookshelf. Images, original book styling, audio, and video are not displayed; book scripts are not executed, and external resources are not loaded. Encrypted book text is not currently supported; font obfuscation alone does not prevent text import.
+- Common Chinese chapter headings and English headings such as `Chapter 1` are detected automatically. Heading detection is used for TXT files and ebooks without a valid native table of contents. Books without chapters and very long chapters are split into sections, so the entire book is never rendered at once.
+- Use “Outline” (大纲) in the sidebar to find chapters, or use the progress bar at the bottom to jump to a position in the book.
+- Use the gear button to adjust the font, font size, line spacing, text width, and page colors. By default, the reader follows the host application's light/dark theme.
+- In the reading area, use `←` / `→` to switch chapters, `Space` to page down, and `Shift + Space` to page up.
+- Switching to another window, browser tab, or SQL/table/page view within DBX automatically collapses reading when the plugin loses focus or becomes hidden. This behavior is always enabled. Keyboard shortcuts require focus inside the plugin.
+- Both expanded and collapsed views use a query toolbar, file tab, editor, and results panel. In the expanded view, the novel appears as comments with line numbers. The collapsed view shows a preset 838-line SQLite business analysis query with CTEs, aggregations, refund calculations, month-over-month comparisons, and window-function rankings, alongside matching results with 24 rows and 17 columns. Syntax highlighting, line numbers, horizontal scrolling, and Results/Messages tabs are supported.
+- The query cover uses local sample data and precomputed results; it does not connect to your databases. Editing the SQL marks the results as “Previous results” (上次结果), and the edited statements are not executed. Click the restore button in the file bar to reset the preset query. SQL drafts last only for the current session; novels continue to save automatically as usual.
+- Each TXT file is limited to 8 MiB. Original EPUB and MOBI files are limited to 32 MiB, with a cumulative decompressed-content limit of 64 MiB and a converted-text limit of 8 Mi UTF-16 code units per book. The bookshelf holds up to 20 books, with a total text limit of 24 Mi UTF-16 code units; archives are limited to 64 MiB. Tables of contents allow up to 10,000 entries and are also subject to the 1 MiB bookshelf index limit. Space for text indexes and later settings changes is reserved before import.
+- When importing a mixed selection, books are added only after every file has been parsed successfully. If any book is damaged, encrypted, or exceeds a limit, the entire batch is canceled and the existing bookshelf is preserved.
 
-已移除手动“导出存档”按钮。旧版 `.waitwork.json` / `.xidu.json` 仍可导入，确认替换后自动保存。0.2.0 的自动保存数据可直接沿用；0.1.0 尚未导出的临时会话无法在关闭后找回，需要先在旧版导出再导入。
+**Your bookshelf, book text, reading position, and settings are saved automatically.** Importing, switching books or chapters, scrolling, and changing settings update local data. The status at the top shows “Autosaving…” (正在自动保存…) or “Autosaved” (已自动保存). Save failures remain visible and are retried automatically. If loading fails, editing is blocked to prevent existing data from being overwritten. When multiple workbenches share one backend, an outdated window cannot overwrite a newer bookshelf.
 
-Windows 数据位置为 `%APPDATA%\waitWork\`：`library.json` 保存书架索引、位置和设置，`texts/` 保存正文分块。它们位于插件安装目录之外，更新插件不会主动清除。每次只更新必要的数据，移除书籍会在索引提交后清理不再使用的正文；中途失败的导入可能留下尚未引用的分块。需要备份时，在关闭 DBX 后复制整个目录。其他平台使用 Go `os.UserConfigDir()` 下的 `waitWork` 目录。
+The manual “Export Archive” button has been removed. Legacy `.waitwork.json` / `.xidu.json` archives can still be imported and are saved automatically after you confirm replacement. Autosave data from version 0.2.0 can be used directly. Temporary sessions from version 0.1.0 that were not exported cannot be recovered after closing; export them from the old version before importing them here.
 
-平时每约 250 ms 合并保存一次变化，离开窗口或收起正文时立即尝试提交。页面关闭时的异步请求无法保证完成；请在顶部显示“已自动保存”后关闭，强制退出或断电仍可能丢失最后尚未写入的变化。
+On Windows, data is stored in `%APPDATA%\waitWork\`: `library.json` holds the bookshelf index, reading positions, and settings, while `texts/` holds text chunks. These files are outside the plugin installation directory and are not actively cleared by plugin updates. Only the necessary data is updated each time. Removing a book cleans up unused text after the index is committed; interrupted imports may leave unreferenced chunks behind. To back up your data, close DBX and copy the entire directory. Other platforms use the `waitWork` directory under Go's `os.UserConfigDir()`.
 
-移除书籍不会删除原始 TXT、EPUB 或 MOBI 文件。内置《雨停之前》是本项目的原创试读文本。
+During normal use, changes are batched and saved approximately every 250 ms. Leaving the window or collapsing the text triggers an immediate save attempt. Asynchronous requests are not guaranteed to finish when the page closes, so wait until the status shows “Autosaved” before closing. A forced exit or power outage may still lose the latest changes that have not yet been written.
 
-## 在线阅读
+Removing a book does not delete its original TXT, EPUB, or MOBI file. The bundled sample, *Before the Rain Stops* (《雨停之前》), is an original text written for this project.
 
-先打开设置 → **自定义书源**，填写并保存 HTTPS 网站首页地址（默认留空）。再打开侧栏 → **在线搜索**，输入书名或作者，选择结果查看简介和目录；点击“开始／继续阅读”或某一章即可加入书架。首次打开在线小说会替换内置示例。支持搜索结果翻页、目录查找、上一章／下一章和按章节跳转进度。
+## Online Reading
 
-当前解析规则适配示例为 `https://www.biquge001.com/`，仅作说明，不自动填写或访问。其他网站需要兼容相同页面结构，并非任意网址都能解析。请自行填写有权访问的网址，遵守网站规则与版权要求。清空网址或恢复默认设置后关闭联网，已有缓存仍可阅读；切换网站后，书架记录和缓存按来源隔离，旧来源未缓存章节需重新配置对应网址。搜索、目录与正文请求由 Go 后端完成，支持网站 GBK 编码；不会执行网页脚本，也不加载远程广告和封面。网站限流、网络中断或页面结构变化时会提示重试。
+First, open Settings → **Custom Book Source** (自定义书源), enter an HTTPS website homepage URL, and save it. This field is empty by default. Then open Sidebar → **Online Search** (在线搜索), enter a book title or author, and select a result to view its description and table of contents. Click “Start / Continue Reading” (开始／继续阅读) or a chapter to add the book to your bookshelf. Opening an online novel for the first time replaces the bundled sample. Search-result pagination, chapter lookup, previous/next chapter navigation, and chapter-based progress navigation are supported.
 
-目录和已打开的章节缓存在本机 `waitWork/online/` 下，重新打开可恢复章节和章内位置。断网时可以阅读已缓存的章节；未缓存的章节需要联网。目录默认使用缓存，点击“大纲”里的“刷新目录”检查更新；刷新失败保留旧目录。缓存失败时正文仍可阅读，但会明确提示尚未缓存。
+The current parsing rules are adapted to `https://www.biquge001.com/` as an example only; the address is neither filled in nor accessed automatically. Other websites must use a compatible page structure—arbitrary URLs are not supported. Enter a URL you are authorized to access and follow the website's rules and copyright requirements. Clearing the URL or restoring default settings disables network access; existing cached content remains readable. Bookshelf records and caches are separated by source when you switch websites. To read uncached chapters from an old source, configure its URL again. Search, table-of-contents, and chapter requests are handled by the Go backend, including support for GBK-encoded websites. Webpage scripts are not executed, and remote ads and covers are not loaded. Rate limiting, network interruptions, or changes to page structure produce a message prompting you to retry.
 
-在线与本地小说合计最多 20 本。移除在线小说后清理其目录与正文缓存；预览过但未加入书架的目录可能保留在缓存目录中。没有整本下载、自定义解析规则或登录功能。旧 TXT 书架和旧 JSON 存档仍可读取；导入旧存档会按确认内容替换整个书架。
+Tables of contents and chapters you have opened are cached locally under `waitWork/online/`. Reopening a book restores the chapter and position within it. Cached chapters can be read offline; uncached chapters require a network connection. The cached table of contents is used by default. Click “Refresh Table of Contents” (刷新目录) under “Outline” to check for updates; if refreshing fails, the old table of contents is preserved. If caching fails, the chapter remains readable, but a message clearly indicates that it has not been cached.
 
-## 开发
+Online and local novels share the 20-book limit. Removing an online novel clears its table-of-contents and text caches. Tables of contents previewed without adding the book may remain in the cache directory. Full-book downloads, custom parsing rules, and website login are not supported. Existing TXT bookshelves and legacy JSON archives remain readable; importing a legacy archive replaces the entire bookshelf as described in the confirmation.
 
-需要 Node.js 22.12+ 和 Go 1.26+；当前开发环境为 Node.js 24 和 Go 1.26。HTML 与 GBK 编码解析使用 Go 官方扩展库 `golang.org/x/net` 和 `golang.org/x/text`。
+## Development
+
+Requires Node.js 22.12+ and Go 1.26+. The current development environment uses Node.js 24 and Go 1.26. HTML parsing and GBK decoding use the official Go extension libraries `golang.org/x/net` and `golang.org/x/text`.
 
 ```powershell
 npm ci
 
-# Vue 开发服务器，5173 端口；单独打开时缺少后端桥接
+# Vue development server on port 5173; no backend bridge when opened on its own
 npm run dev:ui
 
-# 官方 DBX 插件开发宿主，默认 5190 端口
+# Official DBX plugin development host, on port 5190 by default
 npm run dev
 
-# 普通浏览器预览，5191 端口，连接真实 Go 后端
+# Browser preview on port 5191, connected to the real Go backend
 npm run preview
 
-# 生成单文件 UI 和未签名安装包
+# Build the single-file UI and unsigned installation package
 npm run package
 ```
 
-启动官方宿主后，点击左侧工作台中的“Wait Work”。修改源码后执行 `npm run build`，再重载页面。重载后自动恢复上次保存的书架和进度。开发时可通过 `WAITWORK_DATA_DIR` 指定独立数据目录，避免影响正式书架。浏览器预览按会话保存到 `.dbx-dev/preview/`；浏览器测试使用隔离目录。Windows 下 CLI 0.1.9 的内部构建命令有长路径兼容问题，因此本项目在 `npm run dev` 中先完成构建，再启动宿主，不配置 `[dev].ui_build`。启动脚本同时跳过该版本固定 Go 1.22 的临时工作区，使用项目 `go.mod` 锁定的 SDK；调试宿主仍使用官方 runtime。
+After starting the official host, click “Wait Work” in the workbench list on the left. After changing source code, run `npm run build` and reload the page. The last saved bookshelf and reading progress are restored automatically. Set `WAITWORK_DATA_DIR` during development to use a separate data directory and avoid affecting your regular bookshelf. Browser previews save data per session under `.dbx-dev/preview/`; browser tests use isolated directories. On Windows, the internal build command in CLI 0.1.9 has long-path compatibility issues, so `npm run dev` builds the project before starting the host, without configuring `[dev].ui_build`. The startup script also bypasses that CLI version's temporary workspace pinned to Go 1.22 and uses the SDK pinned in the project's `go.mod`. The debug host still uses the official runtime.
 
-## GitHub Actions 打包
+## Packaging with GitHub Actions
 
-- **手动构建**：Actions → Build Wait Work packages → Run workflow，完成后下载 `waitwork-all-platforms`。
-- **版本发布**：先同步并提交前后端版本，再推送与源码版本一致的标签（当前 `v0.6.2`），六个平台全部成功后自动创建 Release 草稿；检查附件后手动发布。创建标签不会自动修改项目版本号。
-- 无需配置自定义 Secret，工作流自动生成六份安装包、各包元数据和 `release-candidates.json`。
+- **Manual build:** Go to Actions → Build Wait Work packages → Run workflow, then download `waitwork-all-platforms` once the run completes.
+- **Version release:** Synchronize and commit the frontend and backend versions, then push a tag matching the source version (currently `v0.6.2`). A draft release is created automatically after all six platform builds succeed. Check the attachments before publishing it manually. Creating a tag does not update project version numbers automatically.
+- No custom secrets are required. The workflow generates six installation packages, metadata for each package, and `release-candidates.json`.
 
-完整平台列表、发布步骤和旧版迁移说明见 [发布打包说明](docs/releasing.md)。
+See the [release and packaging guide](docs/releasing.md) (Chinese) for the full platform list, release steps, and legacy migration notes.
 
 ```text
-src/App.vue                     应用入口，后续模块在此组合
-src/views/ReaderView.vue         小说页面、书架状态、导入与自动保存
-src/components/ReaderSidebar.vue 书架与目录
-src/components/ReadingPane.vue   正文、翻章、滚动位置
-src/components/ReaderSettings.vue 阅读设置
-src/components/QueryToolbar.vue  查询工具栏
-src/components/QueryCover.vue    收起后的查询页面
-src/components/QueryResults.vue  查询结果外观
-src/lib/privacy.js              失焦、页面隐藏与 iframe 可见性检测
-src/lib/sql-highlight.mjs        SQL 安全分词高亮
-src/data/query-demo.sql          可独立执行的样例查询
-src/data/query-demo.json         对应结果快照
-scripts/build-query-demo.py      生成并校验样例 SQL 与结果
-src/lib/host.js                  DBX 后端桥接、正文分块与恢复
-src/lib/autosave.mjs             串行保存、合并变化与失败重试
-backend/main.go                 本地持久化、原子替换与版本冲突检查
-src/reader.mjs                   编码解析、章节切分、存档校验
-src/style.css                    阅读样式
-src/sample.mjs                   原创示例
-vite.config.js                  Vue 编译与单文件打包
-ui/index.html                   构建产物，也是插件入口
-manifest.json                   插件声明
-dbx-plugin.toml                  打包范围
+src/App.vue                      Application entry point; composes the modules below
+src/views/ReaderView.vue          Reader page, bookshelf state, imports, and autosave
+src/components/ReaderSidebar.vue  Bookshelf and table of contents
+src/components/ReadingPane.vue    Book text, chapter navigation, and scroll position
+src/components/ReaderSettings.vue Reading settings
+src/components/QueryToolbar.vue   Query toolbar
+src/components/QueryCover.vue     Collapsed query view
+src/components/QueryResults.vue   Query results presentation
+src/lib/privacy.js               Focus loss, page hiding, and iframe visibility detection
+src/lib/sql-highlight.mjs         Safe SQL tokenization and highlighting
+src/data/query-demo.sql           Standalone executable sample query
+src/data/query-demo.json          Matching results snapshot
+scripts/build-query-demo.py       Sample SQL and results generation and validation
+src/lib/host.js                   DBX backend bridge, text chunking, and restoration
+src/lib/autosave.mjs              Sequential saves, change batching, and failure retries
+backend/main.go                  Local persistence, atomic replacement, and version conflict checks
+src/reader.mjs                    Encoding detection/decoding, chapter splitting, and archive validation
+src/style.css                     Reader styles
+src/sample.mjs                    Original sample text
+vite.config.js                   Vue compilation and single-file packaging
+ui/index.html                    Build output and plugin entry point
+manifest.json                    Plugin manifest
+dbx-plugin.toml                   Package inclusion configuration
 ```
 
-## 验证与兼容性
+## Testing and Compatibility
 
 ```powershell
 npm test
@@ -117,21 +119,21 @@ npm run test:backend
 npm run test:browser
 ```
 
-浏览器测试默认使用已安装的 Microsoft Edge。其他环境可设置 `PLAYWRIGHT_CHANNEL=chrome` 使用 Chrome；测试会启动本地预览和官方 CLI 调试宿主。
+Browser tests use an installed Microsoft Edge by default. In other environments, set `PLAYWRIGHT_CHANNEL=chrome` to use Chrome. The tests start both the local preview and the official CLI debug host.
 
-覆盖 EPUB 2/3、MOBI／KF8 导入、目录锚点与进度恢复、混合批次失败保护、加密与超限拒绝，以及编码、空文件、长章分段、存档校验，以及严格沙箱中的 TXT 导入、章节切换、阅读设置、收起恢复、自动保存恢复、空书架恢复、大文件分块、失败重试、读取失败保护、文本注入防护和窄屏布局，以及宿主内部切页、祖先 display:none、弹窗关闭焦点保护与收起后延迟导入确认。测试截图位于 `test-results/screenshots/`。
+Coverage includes EPUB 2/3 and MOBI/KF8 imports, table-of-contents anchors and progress restoration, mixed-batch failure protection, rejection of encrypted or oversized files, encoding handling, empty files, long-chapter splitting, and archive validation. Tests also cover TXT imports inside a strict sandbox, chapter navigation, reading settings, collapse/restore behavior, autosave restoration, empty-bookshelf restoration, large-file chunking, failure retries, load-failure protection, text-injection protection, narrow-screen layouts, page switching within the host, ancestors with `display:none`, focus protection when dialogs close, and deferred import confirmation after collapsing. Test screenshots are saved under `test-results/screenshots/`.
 
-接口以 DBX 源码 `69d3f028437f1ee1ab90a66a67ee0424966e88ca`（项目版本 0.6.14）为核对基准，后端使用官方 Go SDK，通过 `window.dbxPlugin.invoke` 通信。严格沙箱测试与官方 CLI 宿主均连接真实 Go 后端；尚未在实际 DBX 桌面客户端安装验收。自动收起按当前 DBX 的 `v-show` 工作台行为实现并在严格 iframe 沙箱中验证；宿主若只用不透明浮层覆盖插件且不转移焦点，插件无法识别该遮挡。
+API compatibility was checked against DBX source commit `69d3f028437f1ee1ab90a66a67ee0424966e88ca` (project version 0.6.14). The backend uses the official Go SDK and communicates through `window.dbxPlugin.invoke`. Both strict-sandbox tests and the official CLI host connect to the real Go backend; installation and acceptance testing in the actual DBX desktop client have not yet been completed. Automatic collapse follows DBX's current `v-show` workbench behavior and has been verified in a strict iframe sandbox. If the host merely covers the plugin with an opaque overlay without moving focus, the plugin cannot detect that obstruction.
 
-电子书解析使用锁定提交的 Foliate JS、zip.js 和 fflate，均打包在本地，不需要安装 Calibre 或转换软件。MOBI 解析模块保存在 `src/vendor/mobi.js`，在该上游提交上增加解压配额和损坏记录保护；许可证随包保存在 `assets/THIRD-PARTY-LICENSES.txt`。DBX 的不透明 iframe origin 无法可靠使用 `localStorage` / IndexedDB，因此持久化和在线书源访问由 Go 后端完成。
+Ebook parsing uses pinned commits of Foliate JS, zip.js, and fflate, all bundled locally. Calibre or other conversion software is not required. The MOBI parser is stored in `src/vendor/mobi.js`, with decompression quotas and damaged-record safeguards added on top of the pinned upstream commit. Licenses are included in `assets/THIRD-PARTY-LICENSES.txt`. DBX's opaque iframe origin cannot reliably use `localStorage` / IndexedDB, so persistence and access to online book sources are handled by the Go backend.
 
-## 后续内嵌网站
+## Future Website Embedding
 
-目标是在 DBX 内看抖音、Bilibili、小红书、YouTube。当前插件沙箱不允许直接用外部 iframe 加载完整网站。可探索宿主新增网页容器，或插件后端运行独立浏览器并向 Vue 传回画面、接收输入两条路线；本版未实现网站入口。已确认的限制与待验证方案见 [内嵌网站方案](docs/embedded-sites.md)。
+The goal is to make Douyin, Bilibili, Xiaohongshu, and YouTube available inside DBX. The current plugin sandbox does not allow complete external websites to be loaded directly in iframes. Two possible approaches are a new web container provided by the host, or a separate browser run by the plugin backend that streams its display to Vue and accepts input. This version does not implement website entries. See the [website embedding proposal](docs/embedded-sites.md) (Chinese) for confirmed limitations and approaches that still need validation.
 
-参考：[DBX 插件开发文档](https://github.com/t8y2/dbx/blob/main/docs/content/docs/plugin-development.cn.mdx)、[前端桥接源码](https://github.com/t8y2/dbx/blob/main/apps/desktop/src/lib/plugins/pluginHostBridge.ts)。
+References: [DBX plugin development documentation](https://github.com/t8y2/dbx/blob/main/docs/content/docs/plugin-development.cn.mdx) (Chinese), [frontend bridge source](https://github.com/t8y2/dbx/blob/main/apps/desktop/src/lib/plugins/pluginHostBridge.ts).
 
-修改样例查询生成逻辑后，可用 Python 标准库重新生成和验证结果（插件运行不需要 Python）：
+After changing the sample-query generator, use the Python standard library to regenerate and validate the results. Python is not required to run the plugin.
 
 ```powershell
 python scripts/build-query-demo.py
