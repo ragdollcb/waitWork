@@ -75,6 +75,7 @@ test('长 SQL 与结果快照一致，编辑标记旧结果，恢复与滚动不
   await expect(reader.locator('.sql-highlight img')).toHaveCount(0);
   await expect(reader.locator('.result-stale')).toContainText('SQL 已修改');
   await reader.locator('#reset-query').click();
+  await reader.locator('#confirm-reset-query').click();
   await expect(reader.locator('#query-draft')).toHaveValue(demoSql);
   await expect(reader.locator('.result-stale')).toHaveCount(0);
   await reader.locator('#privacy-screen').getByRole('tab', { name: '消息', exact: true }).click();

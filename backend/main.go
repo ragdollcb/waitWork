@@ -203,6 +203,9 @@ func (s *store) Handle(_ dbx.RequestContext, method string, raw json.RawMessage,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if strings.HasPrefix(method, "cover/") {
+		return s.handleCover(method, raw)
+	}
 	fail := func(err error) (any, *dbx.PluginError) {
 		return nil, dbx.NewError(-32000, "本地自动保存失败："+err.Error())
 	}
@@ -312,7 +315,7 @@ func main() {
 		}
 		dir = filepath.Join(base, "waitWork")
 	}
-	server := dbx.NewServer(dbx.Metadata{ID: "monstercat.waitwork", Version: "0.6.2", Capabilities: []string{}}, &store{dir: dir})
+	server := dbx.NewServer(dbx.Metadata{ID: "monstercat.waitwork", Version: "0.6.4", Capabilities: []string{}}, &store{dir: dir})
 	if err := server.Serve(); err != nil {
 		log.Fatal(err)
 	}

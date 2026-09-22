@@ -16,6 +16,9 @@ const state = reactive({ books: [{ ...sample }], activeId: sample.id, settings: 
 const pane = ref();
 const sidebar = ref();
 const settingsDialog = ref();
+const queryCover = ref();
+const queryTitle = ref('新建查询');
+watch(queryTitle, value => { document.title = value; });
 const confirmDialog = ref();
 const confirmation = shallowRef();
 const privateMode = ref(true);
@@ -241,6 +244,7 @@ watchEffect(() => {
 });
 
 async function setPrivacy(hide, focus = true) {
+  queryCover.value?.closeSettings();
   if (hide === privateMode.value) return;
   if (hide) {
     flushReading();
@@ -248,7 +252,7 @@ async function setPrivacy(hide, focus = true) {
     toast.value = '';
   }
   privateMode.value = hide;
-  document.title = '新建查询';
+  document.title = queryTitle.value;
   await nextTick();
   if (disposed || privateMode.value !== hide) return;
   if (hide) {
@@ -266,6 +270,7 @@ async function setPrivacy(hide, focus = true) {
 }
 function handleKey(event) {
   if (!initialized.value) return;
+  if (event.key === 'Escape' && queryCover.value?.isSettingsOpen()) { event.preventDefault(); event.stopPropagation(); queryCover.value.closeSettings(); return; }
   if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setPrivacy(!privateMode.value); return; }
   if (privateMode.value || settingsDialog.value.isOpen() || confirmDialog.value.open || event.altKey || event.ctrlKey || event.metaKey) return;
   if (event.target.closest('input, select, textarea, button')) return;
@@ -361,15 +366,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div id="reader-app" :inert="!initialized || privateMode" class="app" :class="{ 'sidebar-collapsed': !sidebarOpen }" :hidden="privateMode">
-    <QueryToolbar :saved="saveLabel" :error="saveError" :sidebar-open="sidebarOpen" @sidebar="toggleSidebar" @settings="settingsDialog.open()" @toggle="setPrivacy(true)" />
+    <QueryToolbar :query-title="queryTitle" :saved="saveLabel" :error="saveError" :sidebar-open="sidebarOpen" @sidebar="toggleSidebar" @settings="settingsDialog.open()" @toggle="setPrivacy(true)" />
     <div class="workspace">
       <ReaderSidebar ref="sidebar" v-model:encoding="encoding" :books="state.books" :active-id="state.activeId" :chapters="chapters" :chapter-index="chapterIndex" :busy="importing" :source-url="state.settings.sourceURL" @select-book="selectBook" @remove-book="removeBook" @navigate="navigate" @files="importFiles" @read-online="readOnline" @refresh-online="refreshOnline" @settings="settingsDialog.open()" />
-      <ReadingPane ref="pane" :book="displayBook" :chapters="chapters" :chapter-index="chapterIndex" :hidden="privateMode" :busy="importing" :loading="onlineLoading" :error="onlineError" :warning="onlineWarning" @retry="retryOnline" @position="updatePosition" @navigate="navigate" @seek="seek" @import="sidebar.chooseFiles()" @sample="loadSample" />
+      <ReadingPane ref="pane" :query-title="queryTitle" :book="displayBook" :chapters="chapters" :chapter-index="chapterIndex" :hidden="privateMode" :busy="importing" :loading="onlineLoading" :error="onlineError" :warning="onlineWarning" @retry="retryOnline" @position="updatePosition" @navigate="navigate" @seek="seek" @import="sidebar.chooseFiles()" @sample="loadSample" />
     </div>
   </div>
   <section v-if="!initialized" class="storage-overlay" role="status"><h2>{{ loadError ? '无法读取本地文件' : '正在加载查询…' }}</h2><p>{{ loadError || '正在恢复本地文件和编辑位置。' }}</p><button v-if="loadError" class="button" @click="initialize">重新读取</button></section>
   <div v-if="initialized && saveError && !privateMode" id="save-error" class="save-error" role="alert">{{ saveError }}<span>最新修改尚未保存，请保持插件打开。</span></div>
-  <QueryCover v-show="privateMode" @restore="setPrivacy(false)" />
+  <QueryCover ref="queryCover" v-show="privateMode" @title="queryTitle = $event" @restore="setPrivacy(false)" />
   <ReaderSettings ref="settingsDialog" :settings="state.settings" @change="changeSetting" @reset="resetSettings" />
   <dialog id="confirm-dialog" ref="confirmDialog" class="confirm-dialog" aria-labelledby="confirm-title" @cancel="confirmation = undefined"><h2 id="confirm-title">{{ confirmation?.title }}</h2><p id="confirm-message">{{ confirmation?.message }}</p><div class="dialog-actions"><button id="confirm-cancel" class="button quiet" @click="closeConfirm">取消</button><button id="confirm-ok" class="button import-button" @click="confirmOK">确定</button></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" :hidden="!toast || privateMode">{{ toast }}</div>

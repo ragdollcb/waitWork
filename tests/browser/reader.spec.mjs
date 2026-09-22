@@ -4,6 +4,8 @@ import { epub } from '../fixtures/ebooks.mjs';
 
 const novel = '第一章 雨夜\n' + '雨声沿着屋檐缓缓流下，她翻开一本旧书。\n'.repeat(180) + '\n第二章 清晨\n' + '窗外天色渐亮。\n'.repeat(100);
 async function reveal(reader) {
+  // 宿主的 iframe 可能尚未挂载；不能把暂时不存在的加载遮罩当作加载完成。
+  await expect(reader.locator('#reader-app')).toBeAttached();
   await expect(reader.locator('.storage-overlay')).toHaveCount(0);
   if (await reader.locator('#privacy-screen').isVisible()) await reader.locator('#restore-reading').click();
   await expect(reader.locator('#reader-app')).toBeVisible();
@@ -118,6 +120,9 @@ test('实际官方 CLI 宿主可自动保存并在重开工作台后恢复', asy
   await page.goto('http://127.0.0.1:5190');
   await page.getByRole('button', { name: 'Wait Work', exact: true }).click();
   const reader = page.frameLocator('iframe').first();
+  await expect(reader.locator('#cover-save-status')).toHaveText('已保存');
+  await reader.locator('#query-draft').fill('SELECT order_id FROM orders;');
+  await expect(reader.locator('#cover-save-status')).toHaveText('已保存');
   await reveal(reader);
   await expect(reader.locator('#chapter-title')).toContainText('第一章 旧车站', { timeout: 20000 });
   await reader.locator('#file-input').setInputFiles(txt);
@@ -125,6 +130,7 @@ test('实际官方 CLI 宿主可自动保存并在重开工作台后恢复', asy
   await expect(reader.locator('#save-status')).toHaveText('已自动保存');
   await page.reload();
   await page.getByRole('button', { name: 'Wait Work', exact: true }).click();
+  await expect(reader.locator('#query-draft')).toHaveValue('SELECT order_id FROM orders;');
   await reveal(reader);
   await expect(reader.locator('#current-book')).toHaveText('长篇测试');
   await expect(reader.locator('.storage-overlay')).toHaveCount(0);

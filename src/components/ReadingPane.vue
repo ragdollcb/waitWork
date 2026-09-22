@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { paragraphsFor } from '../reader.mjs';
 import QueryResults from './QueryResults.vue';
 
-const props = defineProps({ book: Object, chapters: Array, chapterIndex: Number, hidden: Boolean, busy: Boolean, loading: Boolean, error: String, warning: String });
+const props = defineProps({ book: Object, chapters: Array, chapterIndex: Number, hidden: Boolean, busy: Boolean, loading: Boolean, error: String, warning: String, queryTitle: { type: String, default: '新建查询' } });
 const emit = defineEmits(['position', 'navigate', 'seek', 'import', 'sample', 'retry']);
 const scroller = ref();
 const paragraphRoot = ref();
@@ -72,12 +72,12 @@ defineExpose({ capture, restore, focus, pageDown });
 
 <template>
   <main class="reading-main">
-    <div id="reading-meta" class="query-filebar"><span class="sql-file-icon" aria-hidden="true">SQL</span><span>新建查询.sql</span><span id="current-book" class="sr-only">{{ book?.title }}</span><span class="query-spacer"></span><span id="section-count">{{ chapterIndex + 1 }} / {{ chapters.length }}</span></div>
+    <div id="reading-meta" class="query-filebar"><span class="sql-file-icon" aria-hidden="true">SQL</span><span class="query-filename">{{ queryTitle }}.sql</span><span id="current-book" class="sr-only">{{ book?.title }}</span><span class="query-spacer"></span><span id="section-count">{{ chapterIndex + 1 }} / {{ chapters.length }}</span></div>
     <div id="reading-scroll" ref="scroller" class="reading-scroll" tabindex="0" aria-label="小说正文" @scroll.passive="onScroll">
       <section v-if="loading || error" class="empty-state" aria-live="polite"><p>{{ loading ? '正在加载章节…' : error }}</p><button v-if="error" id="retry-chapter" class="button" @click="emit('retry')">重试</button></section>
       <article v-else-if="book" id="article" class="article">
         <p v-if="warning" class="online-error" role="alert">{{ warning }} <button class="button quiet" @click="emit('retry')">重试缓存</button></p>
-        <div class="sql-comment sql-heading" data-line="1">-- 新建查询</div>
+        <div class="sql-comment sql-heading" data-line="1">-- {{ queryTitle }}</div>
         <h1 id="chapter-title" class="sql-comment" data-line="2"><span class="comment-prefix" aria-hidden="true">-- </span>{{ section?.title }}</h1>
         <div id="paragraphs" ref="paragraphRoot" class="paragraphs"><p v-for="(p, index) in paragraphs" :key="p.start" :data-line="index + 3" :data-start="p.start" :data-end="p.end"><span class="comment-prefix" aria-hidden="true">-- </span>{{ p.text }}</p></div>
         <div class="chapter-end"><button v-if="chapterIndex >= 0 && chapterIndex < chapters.length - 1" id="next-inline" class="button quiet" @click="emit('navigate', chapterIndex + 1)">{{ book.kind === 'online' ? '下一章' : '下一段' }} →</button></div>
